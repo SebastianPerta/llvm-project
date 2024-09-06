@@ -63,6 +63,8 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   case renderscript64: return "renderscript64";
   case riscv32:        return "riscv32";
   case riscv64:        return "riscv64";
+  case rl78:
+    return "rl78";
   case shave:          return "shave";
   case sparc:          return "sparc";
   case sparcel:        return "sparcel";
@@ -218,6 +220,9 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case riscv32:
   case riscv64:     return "riscv";
+
+  case rl78:
+    return "rl78";
 
   case ve:          return "ve";
   case csky:        return "csky";
@@ -387,71 +392,72 @@ static Triple::ArchType parseBPFArch(StringRef ArchName) {
 Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
   Triple::ArchType BPFArch(parseBPFArch(Name));
   return StringSwitch<Triple::ArchType>(Name)
-    .Case("aarch64", aarch64)
-    .Case("aarch64_be", aarch64_be)
-    .Case("aarch64_32", aarch64_32)
-    .Case("arc", arc)
-    .Case("arm64", aarch64) // "arm64" is an alias for "aarch64"
-    .Case("arm64_32", aarch64_32)
-    .Case("arm", arm)
-    .Case("armeb", armeb)
-    .Case("avr", avr)
-    .StartsWith("bpf", BPFArch)
-    .Case("m68k", m68k)
-    .Case("mips", mips)
-    .Case("mipsel", mipsel)
-    .Case("mips64", mips64)
-    .Case("mips64el", mips64el)
-    .Case("msp430", msp430)
-    .Case("ppc64", ppc64)
-    .Case("ppc32", ppc)
-    .Case("ppc", ppc)
-    .Case("ppc32le", ppcle)
-    .Case("ppcle", ppcle)
-    .Case("ppc64le", ppc64le)
-    .Case("r600", r600)
-    .Case("amdgcn", amdgcn)
-    .Case("riscv32", riscv32)
-    .Case("riscv64", riscv64)
-    .Case("hexagon", hexagon)
-    .Case("sparc", sparc)
-    .Case("sparcel", sparcel)
-    .Case("sparcv9", sparcv9)
-    .Case("s390x", systemz)
-    .Case("systemz", systemz)
-    .Case("tce", tce)
-    .Case("tcele", tcele)
-    .Case("thumb", thumb)
-    .Case("thumbeb", thumbeb)
-    .Case("x86", x86)
-    .Case("i386", x86)
-    .Case("x86-64", x86_64)
-    .Case("xcore", xcore)
-    .Case("nvptx", nvptx)
-    .Case("nvptx64", nvptx64)
-    .Case("amdil", amdil)
-    .Case("amdil64", amdil64)
-    .Case("hsail", hsail)
-    .Case("hsail64", hsail64)
-    .Case("spir", spir)
-    .Case("spir64", spir64)
-    .Case("spirv", spirv)
-    .Case("spirv32", spirv32)
-    .Case("spirv64", spirv64)
-    .Case("kalimba", kalimba)
-    .Case("lanai", lanai)
-    .Case("shave", shave)
-    .Case("wasm32", wasm32)
-    .Case("wasm64", wasm64)
-    .Case("renderscript32", renderscript32)
-    .Case("renderscript64", renderscript64)
-    .Case("ve", ve)
-    .Case("csky", csky)
-    .Case("loongarch32", loongarch32)
-    .Case("loongarch64", loongarch64)
-    .Case("dxil", dxil)
-    .Case("xtensa", xtensa)
-    .Default(UnknownArch);
+      .Case("aarch64", aarch64)
+      .Case("aarch64_be", aarch64_be)
+      .Case("aarch64_32", aarch64_32)
+      .Case("arc", arc)
+      .Case("arm64", aarch64) // "arm64" is an alias for "aarch64"
+      .Case("arm64_32", aarch64_32)
+      .Case("arm", arm)
+      .Case("armeb", armeb)
+      .Case("avr", avr)
+      .StartsWith("bpf", BPFArch)
+      .Case("m68k", m68k)
+      .Case("mips", mips)
+      .Case("mipsel", mipsel)
+      .Case("mips64", mips64)
+      .Case("mips64el", mips64el)
+      .Case("msp430", msp430)
+      .Case("ppc64", ppc64)
+      .Case("ppc32", ppc)
+      .Case("ppc", ppc)
+      .Case("ppc32le", ppcle)
+      .Case("ppcle", ppcle)
+      .Case("ppc64le", ppc64le)
+      .Case("r600", r600)
+      .Case("amdgcn", amdgcn)
+      .Case("riscv32", riscv32)
+      .Case("riscv64", riscv64)
+      .Case("hexagon", hexagon)
+      .Case("sparc", sparc)
+      .Case("sparcel", sparcel)
+      .Case("sparcv9", sparcv9)
+      .Case("s390x", systemz)
+      .Case("systemz", systemz)
+      .Case("tce", tce)
+      .Case("tcele", tcele)
+      .Case("thumb", thumb)
+      .Case("thumbeb", thumbeb)
+      .Case("x86", x86)
+      .Case("i386", x86)
+      .Case("x86-64", x86_64)
+      .Case("xcore", xcore)
+      .Case("nvptx", nvptx)
+      .Case("nvptx64", nvptx64)
+      .Case("amdil", amdil)
+      .Case("amdil64", amdil64)
+      .Case("hsail", hsail)
+      .Case("hsail64", hsail64)
+      .Case("spir", spir)
+      .Case("spir64", spir64)
+      .Case("spirv", spirv)
+      .Case("spirv32", spirv32)
+      .Case("spirv64", spirv64)
+      .Case("kalimba", kalimba)
+      .Case("lanai", lanai)
+      .Case("shave", shave)
+      .Case("wasm32", wasm32)
+      .Case("wasm64", wasm64)
+      .Case("renderscript32", renderscript32)
+      .Case("renderscript64", renderscript64)
+      .Case("rl78", rl78)
+      .Case("ve", ve)
+      .Case("csky", csky)
+      .Case("loongarch32", loongarch32)
+      .Case("loongarch64", loongarch64)
+      .Case("dxil", dxil)
+      .Case("xtensa", xtensa)
+      .Default(UnknownArch);
 }
 
 static Triple::ArchType parseARMArch(StringRef ArchName) {
@@ -520,84 +526,84 @@ static Triple::ArchType parseARMArch(StringRef ArchName) {
 }
 
 static Triple::ArchType parseArch(StringRef ArchName) {
-  auto AT =
-      StringSwitch<Triple::ArchType>(ArchName)
-          .Cases("i386", "i486", "i586", "i686", Triple::x86)
-          // FIXME: Do we need to support these?
-          .Cases("i786", "i886", "i986", Triple::x86)
-          .Cases("amd64", "x86_64", "x86_64h", Triple::x86_64)
-          .Cases("powerpc", "powerpcspe", "ppc", "ppc32", Triple::ppc)
-          .Cases("powerpcle", "ppcle", "ppc32le", Triple::ppcle)
-          .Cases("powerpc64", "ppu", "ppc64", Triple::ppc64)
-          .Cases("powerpc64le", "ppc64le", Triple::ppc64le)
-          .Case("xscale", Triple::arm)
-          .Case("xscaleeb", Triple::armeb)
-          .Case("aarch64", Triple::aarch64)
-          .Case("aarch64_be", Triple::aarch64_be)
-          .Case("aarch64_32", Triple::aarch64_32)
-          .Case("arc", Triple::arc)
-          .Case("arm64", Triple::aarch64)
-          .Case("arm64_32", Triple::aarch64_32)
-          .Case("arm64e", Triple::aarch64)
-          .Case("arm64ec", Triple::aarch64)
-          .Case("arm", Triple::arm)
-          .Case("armeb", Triple::armeb)
-          .Case("thumb", Triple::thumb)
-          .Case("thumbeb", Triple::thumbeb)
-          .Case("avr", Triple::avr)
-          .Case("m68k", Triple::m68k)
-          .Case("msp430", Triple::msp430)
-          .Cases("mips", "mipseb", "mipsallegrex", "mipsisa32r6", "mipsr6",
-                 Triple::mips)
-          .Cases("mipsel", "mipsallegrexel", "mipsisa32r6el", "mipsr6el",
-                 Triple::mipsel)
-          .Cases("mips64", "mips64eb", "mipsn32", "mipsisa64r6", "mips64r6",
-                 "mipsn32r6", Triple::mips64)
-          .Cases("mips64el", "mipsn32el", "mipsisa64r6el", "mips64r6el",
-                 "mipsn32r6el", Triple::mips64el)
-          .Case("r600", Triple::r600)
-          .Case("amdgcn", Triple::amdgcn)
-          .Case("riscv32", Triple::riscv32)
-          .Case("riscv64", Triple::riscv64)
-          .Case("hexagon", Triple::hexagon)
-          .Cases("s390x", "systemz", Triple::systemz)
-          .Case("sparc", Triple::sparc)
-          .Case("sparcel", Triple::sparcel)
-          .Cases("sparcv9", "sparc64", Triple::sparcv9)
-          .Case("tce", Triple::tce)
-          .Case("tcele", Triple::tcele)
-          .Case("xcore", Triple::xcore)
-          .Case("nvptx", Triple::nvptx)
-          .Case("nvptx64", Triple::nvptx64)
-          .Case("amdil", Triple::amdil)
-          .Case("amdil64", Triple::amdil64)
-          .Case("hsail", Triple::hsail)
-          .Case("hsail64", Triple::hsail64)
-          .Case("spir", Triple::spir)
-          .Case("spir64", Triple::spir64)
-          .Cases("spirv", "spirv1.5", "spirv1.6", Triple::spirv)
-          .Cases("spirv32", "spirv32v1.0", "spirv32v1.1", "spirv32v1.2",
-            "spirv32v1.3", "spirv32v1.4", "spirv32v1.5",
-            "spirv32v1.6", Triple::spirv32)
-          .Cases("spirv64", "spirv64v1.0", "spirv64v1.1", "spirv64v1.2",
-            "spirv64v1.3", "spirv64v1.4", "spirv64v1.5",
-            "spirv64v1.6", Triple::spirv64)
-          .StartsWith("kalimba", Triple::kalimba)
-          .Case("lanai", Triple::lanai)
-          .Case("renderscript32", Triple::renderscript32)
-          .Case("renderscript64", Triple::renderscript64)
-          .Case("shave", Triple::shave)
-          .Case("ve", Triple::ve)
-          .Case("wasm32", Triple::wasm32)
-          .Case("wasm64", Triple::wasm64)
-          .Case("csky", Triple::csky)
-          .Case("loongarch32", Triple::loongarch32)
-          .Case("loongarch64", Triple::loongarch64)
-          .Cases("dxil", "dxilv1.0", "dxilv1.1", "dxilv1.2", "dxilv1.3",
-                 "dxilv1.4", "dxilv1.5", "dxilv1.6", "dxilv1.7", "dxilv1.8",
-                 Triple::dxil)
-          .Case("xtensa", Triple::xtensa)
-          .Default(Triple::UnknownArch);
+  auto AT = StringSwitch<Triple::ArchType>(ArchName)
+                .Cases("i386", "i486", "i586", "i686", Triple::x86)
+                // FIXME: Do we need to support these?
+                .Cases("i786", "i886", "i986", Triple::x86)
+                .Cases("amd64", "x86_64", "x86_64h", Triple::x86_64)
+                .Cases("powerpc", "powerpcspe", "ppc", "ppc32", Triple::ppc)
+                .Cases("powerpcle", "ppcle", "ppc32le", Triple::ppcle)
+                .Cases("powerpc64", "ppu", "ppc64", Triple::ppc64)
+                .Cases("powerpc64le", "ppc64le", Triple::ppc64le)
+                .Case("xscale", Triple::arm)
+                .Case("xscaleeb", Triple::armeb)
+                .Case("aarch64", Triple::aarch64)
+                .Case("aarch64_be", Triple::aarch64_be)
+                .Case("aarch64_32", Triple::aarch64_32)
+                .Case("arc", Triple::arc)
+                .Case("arm64", Triple::aarch64)
+                .Case("arm64_32", Triple::aarch64_32)
+                .Case("arm64e", Triple::aarch64)
+                .Case("arm64ec", Triple::aarch64)
+                .Case("arm", Triple::arm)
+                .Case("armeb", Triple::armeb)
+                .Case("thumb", Triple::thumb)
+                .Case("thumbeb", Triple::thumbeb)
+                .Case("avr", Triple::avr)
+                .Case("m68k", Triple::m68k)
+                .Case("msp430", Triple::msp430)
+                .Cases("mips", "mipseb", "mipsallegrex", "mipsisa32r6",
+                       "mipsr6", Triple::mips)
+                .Cases("mipsel", "mipsallegrexel", "mipsisa32r6el", "mipsr6el",
+                       Triple::mipsel)
+                .Cases("mips64", "mips64eb", "mipsn32", "mipsisa64r6",
+                       "mips64r6", "mipsn32r6", Triple::mips64)
+                .Cases("mips64el", "mipsn32el", "mipsisa64r6el", "mips64r6el",
+                       "mipsn32r6el", Triple::mips64el)
+                .Case("r600", Triple::r600)
+                .Case("amdgcn", Triple::amdgcn)
+                .Case("riscv32", Triple::riscv32)
+                .Case("riscv64", Triple::riscv64)
+                .Case("hexagon", Triple::hexagon)
+                .Cases("s390x", "systemz", Triple::systemz)
+                .Case("sparc", Triple::sparc)
+                .Case("sparcel", Triple::sparcel)
+                .Cases("sparcv9", "sparc64", Triple::sparcv9)
+                .Case("tce", Triple::tce)
+                .Case("tcele", Triple::tcele)
+                .Case("xcore", Triple::xcore)
+                .Case("nvptx", Triple::nvptx)
+                .Case("nvptx64", Triple::nvptx64)
+                .Case("amdil", Triple::amdil)
+                .Case("amdil64", Triple::amdil64)
+                .Case("hsail", Triple::hsail)
+                .Case("hsail64", Triple::hsail64)
+                .Case("spir", Triple::spir)
+                .Case("spir64", Triple::spir64)
+                .Cases("spirv", "spirv1.5", "spirv1.6", Triple::spirv)
+                .Cases("spirv32", "spirv32v1.0", "spirv32v1.1", "spirv32v1.2",
+                       "spirv32v1.3", "spirv32v1.4", "spirv32v1.5",
+                       "spirv32v1.6", Triple::spirv32)
+                .Cases("spirv64", "spirv64v1.0", "spirv64v1.1", "spirv64v1.2",
+                       "spirv64v1.3", "spirv64v1.4", "spirv64v1.5",
+                       "spirv64v1.6", Triple::spirv64)
+                .StartsWith("kalimba", Triple::kalimba)
+                .Case("lanai", Triple::lanai)
+                .Case("renderscript32", Triple::renderscript32)
+                .Case("renderscript64", Triple::renderscript64)
+                .Case("rl78", Triple::rl78)
+                .Case("shave", Triple::shave)
+                .Case("ve", Triple::ve)
+                .Case("wasm32", Triple::wasm32)
+                .Case("wasm64", Triple::wasm64)
+                .Case("csky", Triple::csky)
+                .Case("loongarch32", Triple::loongarch32)
+                .Case("loongarch64", Triple::loongarch64)
+                .Cases("dxil", "dxilv1.0", "dxilv1.1", "dxilv1.2", "dxilv1.3",
+                       "dxilv1.4", "dxilv1.5", "dxilv1.6", "dxilv1.7",
+                       "dxilv1.8", Triple::dxil)
+                .Case("xtensa", Triple::xtensa)
+                .Default(Triple::UnknownArch);
 
   // Some architectures require special parsing logic just to compute the
   // ArchType result.
@@ -916,6 +922,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::renderscript64:
   case Triple::riscv32:
   case Triple::riscv64:
+  case Triple::rl78:
   case Triple::shave:
   case Triple::sparc:
   case Triple::sparcel:
@@ -1582,6 +1589,7 @@ unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
 
   case llvm::Triple::avr:
   case llvm::Triple::msp430:
+  case llvm::Triple::rl78:
     return 16;
 
   case llvm::Triple::aarch64_32:
@@ -1669,6 +1677,7 @@ Triple Triple::get32BitArchVariant() const {
   case Triple::bpfeb:
   case Triple::bpfel:
   case Triple::msp430:
+  case Triple::rl78:
   case Triple::systemz:
   case Triple::ve:
     T.setArch(UnknownArch);
@@ -1753,6 +1762,7 @@ Triple Triple::get64BitArchVariant() const {
   case Triple::m68k:
   case Triple::msp430:
   case Triple::r600:
+  case Triple::rl78:
   case Triple::shave:
   case Triple::sparcel:
   case Triple::tce:
@@ -1844,6 +1854,7 @@ Triple Triple::getBigEndianArchVariant() const {
   case Triple::renderscript64:
   case Triple::riscv32:
   case Triple::riscv64:
+  case Triple::rl78:
   case Triple::shave:
   case Triple::spir64:
   case Triple::spir:
@@ -1951,6 +1962,7 @@ bool Triple::isLittleEndian() const {
   case Triple::renderscript64:
   case Triple::riscv32:
   case Triple::riscv64:
+  case Triple::rl78:
   case Triple::shave:
   case Triple::sparcel:
   case Triple::spir64:
