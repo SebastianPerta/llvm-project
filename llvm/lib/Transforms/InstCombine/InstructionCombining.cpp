@@ -267,6 +267,11 @@ bool InstCombinerImpl::shouldChangeType(Type *From, Type *To) const {
 
   unsigned FromWidth = From->getPrimitiveSizeInBits();
   unsigned ToWidth = To->getPrimitiveSizeInBits();
+  
+  // TODO: For RL78 we don't want to change the type.
+  if(FromWidth == 8 && ToWidth == 16)
+      return false;
+
   return shouldChangeType(FromWidth, ToWidth);
 }
 

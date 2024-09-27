@@ -842,6 +842,8 @@ CGFunctionInfo *CGFunctionInfo::create(unsigned llvmCC, bool instanceMethod,
   FI->Required = required;
   FI->HasRegParm = info.getHasRegParm();
   FI->RegParm = info.getRegParm();
+  FI->Far = info.getFar();
+  FI->NonDefaultAS = info.getNonDefaultAS();
   FI->ArgStruct = nullptr;
   FI->ArgStructAlign = 0;
   FI->NumArgs = argTypes.size();
@@ -4258,14 +4260,16 @@ void CallArgList::allocateArgumentMemory(CodeGenFunction &CGF) {
   assert(!StackBase);
 
   // Save the stack.
-  llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stacksave);
+  llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stacksave,
+      CGF.getLangOpts().RenesasRL78DataModel ? CGF.AllocaInt8PtrTy : CGF.Int8PtrTy);
   StackBase = CGF.Builder.CreateCall(F, {}, "inalloca.save");
 }
 
 void CallArgList::freeArgumentMemory(CodeGenFunction &CGF) const {
   if (StackBase) {
     // Restore the stack after the call.
-    llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
+    llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore,
+        CGF.getLangOpts().RenesasRL78DataModel ? CGF.AllocaInt8PtrTy : CGF.Int8PtrTy);
     CGF.Builder.CreateCall(F, StackBase);
   }
 }
@@ -4414,6 +4418,8 @@ void CodeGenFunction::EmitCallArgs(
 #endif
   }
 
+  const auto firstVAIdx = ArgTypes.size();
+
   // If we still have any arguments, emit them using the type of the argument.
   for (auto *A : llvm::drop_begin(ArgRange, ArgTypes.size()))
     ArgTypes.push_back(IsVariadic ? getVarArgType(A) : A->getType());
@@ -4482,6 +4488,24 @@ void CodeGenFunction::EmitCallArgs(
     // non-null argument check for r-value only.
     if (!Args.back().hasLValue()) {
       RValue RVArg = Args.back().getKnownRValue();
+
+      // RL78: make sure the near pointers passed as variadic arguments are cast
+      // to the default address space when -mfar-data is in use
+      if (getLangOpts().RenesasRL78DataModel && I >= firstVAIdx &&
+          RVArg.isScalar() && RVArg.getScalarVal()->getType()->isPointerTy()) {
+        auto Ptr = RVArg.getScalarVal();
+        auto DefAS = getContext().getTargetAddressSpace(LangAS::Default);
+        auto ArgPtrAS = RVArg.getScalarVal()->getType()->getPointerAddressSpace();
+        if (ArgPtrAS != DefAS) {
+          Ptr = Builder.CreateAddrSpaceCast(
+              Ptr, llvm::PointerType::get(
+                       Ptr->getContext(),
+                       getContext().getTargetAddressSpace(LangAS::Default)));
+          RVArg = RValue::get(Ptr);
+          Args.back().setRValue(RVArg);
+        }
+      }
+
       EmitNonNullArgCheck(RVArg, ArgTypes[Idx], (*Arg)->getExprLoc(), AC,
                           ParamsToSkip + Idx);
       // @llvm.objectsize should never have side-effects and shouldn't need
@@ -4981,7 +5005,15 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       }
     }
     if (IRFunctionArgs.hasSRetArg()) {
-      IRCallArgs[IRFunctionArgs.getSRetArgNo()] = SRetPtr.getPointer();
+      auto SRetArgNo = IRFunctionArgs.getSRetArgNo();
+      auto SRetPtrVal = SRetPtr.getPointer();
+      // RL78: automatically cast sret ptr to the Default AS when -mfar-data
+      if (getLangOpts().RenesasRL78DataModel) {
+        auto IRPtrTy = IRFuncTy->getParamType(SRetArgNo);
+        if (IRPtrTy->getPointerAddressSpace() == getContext().getTargetAddressSpace(LangAS::Default))
+          SRetPtrVal = Builder.CreatePointerBitCastOrAddrSpaceCast(SRetPtrVal, IRPtrTy);
+      }
+      IRCallArgs[SRetArgNo] = SRetPtrVal;
     } else if (RetAI.isInAlloca()) {
       Address Addr =
           Builder.CreateStructGEP(ArgMemory, RetAI.getInAllocaFieldIndex());
@@ -5211,8 +5243,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // If the argument doesn't match, perform a bitcast to coerce it.  This
         // can happen due to trivial type mismatches.
         if (FirstIRArg < IRFuncTy->getNumParams() &&
-            V->getType() != IRFuncTy->getParamType(FirstIRArg))
-          V = Builder.CreateBitCast(V, IRFuncTy->getParamType(FirstIRArg));
+            V->getType() != IRFuncTy->getParamType(FirstIRArg)) {
+          // RL78: automatically cast __near AS ptrs to Default AS ones when -mfar-data
+          auto SrcTy = V->getType(), DstTy = IRFuncTy->getParamType(FirstIRArg);
+          if (getLangOpts().RenesasRL78DataModel && SrcTy->isPointerTy() && DstTy->isPointerTy() &&
+              SrcTy->getPointerAddressSpace() == getContext().getTargetAddressSpace(LangAS::__near) &&
+              DstTy->getPointerAddressSpace() == getContext().getTargetAddressSpace(LangAS::Default))
+            V = Builder.CreatePointerBitCastOrAddrSpaceCast(V, DstTy);
+          else
+            V = Builder.CreateBitCast(V, DstTy);
+        }
 
         if (ArgHasMaybeUndefAttr)
           V = Builder.CreateFreeze(V);

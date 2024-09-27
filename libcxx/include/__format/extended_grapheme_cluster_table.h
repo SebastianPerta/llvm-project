@@ -71,6 +71,12 @@
 #  pragma GCC system_header
 #endif
 
+#ifdef __RL78__
+#define __rl78_far __far
+#else
+#define __rl78_far
+#endif
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER >= 20
@@ -124,7 +130,7 @@ enum class __property : uint8_t {
 /// this approach uses less space for the data and is about 4% faster in the
 /// following benchmark.
 /// libcxx/benchmarks/std_format_spec_string_unicode.bench.cpp
-inline constexpr uint32_t __entries[1496] = {
+inline constexpr uint32_t __rl78_far __entries[1496] = {
     0x00000091,
     0x00005005,
     0x00005811,

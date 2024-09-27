@@ -48,6 +48,8 @@ static const LangASMap FakeAddrSpaceMap = {
     12, // ptr64
     13, // hlsl_groupshared
     20, // wasm_funcref
+    14, // __near
+    15  // __far
 };
 
 // TargetInfo Constructor.
@@ -738,6 +740,7 @@ bool TargetInfo::validateOutputConstraint(ConstraintInfo &Info) const {
       // FIXME: Check that there is a another register after this one.
       break;
     case 'r': // general register.
+    case 'R': // general register.
       Info.setAllowsRegister();
       break;
     case 'm': // memory operand.

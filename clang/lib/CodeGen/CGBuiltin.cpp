@@ -52,6 +52,7 @@
 #include "llvm/IR/IntrinsicsVE.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
+#include "llvm/IR/IntrinsicsRL78.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/MatrixBuilder.h"
 #include "llvm/Support/ConvertUTF.h"
@@ -800,13 +801,15 @@ EncompassingIntegerType(ArrayRef<struct WidthAndSignedness> Types) {
 }
 
 Value *CodeGenFunction::EmitVAStartEnd(Value *ArgValue, bool IsStart) {
-  llvm::Type *DestType = Int8PtrTy;
+  llvm::Type *DestType =
+      getLangOpts().RenesasRL78DataModel ? AllocaInt8PtrTy : Int8PtrTy;
+
   if (ArgValue->getType() != DestType)
-    ArgValue =
-        Builder.CreateBitCast(ArgValue, DestType, ArgValue->getName().data());
+    ArgValue = Builder.CreatePointerBitCastOrAddrSpaceCast(
+        ArgValue, DestType, ArgValue->getName().data());
 
   Intrinsic::ID inst = IsStart ? Intrinsic::vastart : Intrinsic::vaend;
-  return Builder.CreateCall(CGM.getIntrinsic(inst), ArgValue);
+  return Builder.CreateCall(CGM.getIntrinsic(inst, DestType), ArgValue);
 }
 
 /// Checks if using the result of __builtin_object_size(p, @p From) in place of
@@ -2637,11 +2640,12 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Value *DstPtr = EmitVAListRef(E->getArg(0)).getPointer();
     Value *SrcPtr = EmitVAListRef(E->getArg(1)).getPointer();
 
-    llvm::Type *Type = Int8PtrTy;
+    llvm::Type *Type =
+        getLangOpts().RenesasRL78DataModel ? AllocaInt8PtrTy : Int8PtrTy;
 
-    DstPtr = Builder.CreateBitCast(DstPtr, Type);
-    SrcPtr = Builder.CreateBitCast(SrcPtr, Type);
-    Builder.CreateCall(CGM.getIntrinsic(Intrinsic::vacopy), {DstPtr, SrcPtr});
+    DstPtr = Builder.CreatePointerBitCastOrAddrSpaceCast(DstPtr, Type);
+    SrcPtr = Builder.CreatePointerBitCastOrAddrSpaceCast(SrcPtr, Type);
+    Builder.CreateCall(CGM.getIntrinsic(Intrinsic::vacopy, {Type}), {DstPtr, SrcPtr});
     return RValue::get(nullptr);
   }
   case Builtin::BI__builtin_abs:
@@ -3808,12 +3812,14 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_return_address: {
     Value *Depth = ConstantEmitter(*this).emitAbstract(E->getArg(0),
                                                    getContext().UnsignedIntTy);
-    Function *F = CGM.getIntrinsic(Intrinsic::returnaddress);
+    auto PtrTy = getContext().getLangOpts().RenesasRL78 ? AllocaInt8PtrTy : Int8PtrTy;
+    Function *F = CGM.getIntrinsic(Intrinsic::returnaddress, PtrTy);
     return RValue::get(Builder.CreateCall(F, Depth));
   }
   case Builtin::BI_ReturnAddress: {
-    Function *F = CGM.getIntrinsic(Intrinsic::returnaddress);
-    return RValue::get(Builder.CreateCall(F, Builder.getInt32(0)));
+    auto PtrTy = getContext().getLangOpts().RenesasRL78 ? AllocaInt8PtrTy : Int8PtrTy;
+    Function *F = CGM.getIntrinsic(Intrinsic::returnaddress, PtrTy);
+    return RValue::get(Builder.CreateCall(F, Builder.getIntN(getTarget().getIntWidth(), 0)));
   }
   case Builtin::BI__builtin_frame_address: {
     Value *Depth = ConstantEmitter(*this).emitAbstract(E->getArg(0),
@@ -3906,8 +3912,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     Builder.CreateStore(FrameAddr, Buf);
 
     // Store the stack pointer to the setjmp buffer.
-    Value *StackAddr =
-        Builder.CreateCall(CGM.getIntrinsic(Intrinsic::stacksave));
+    Value *StackAddr = Builder.CreateCall(CGM.getIntrinsic(
+        Intrinsic::stacksave,
+        getLangOpts().RenesasRL78DataModel ? AllocaInt8PtrTy : Int8PtrTy));
     Address StackSaveSlot = Builder.CreateConstInBoundsGEP(Buf, 2);
     Builder.CreateStore(StackAddr, StackSaveSlot);
 
@@ -5591,6 +5598,8 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
   case llvm::Triple::loongarch32:
   case llvm::Triple::loongarch64:
     return CGF->EmitLoongArchBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::RL78:
+      return CGF->EmitRL78BuiltinExpr(BuiltinID, E);
   default:
     return nullptr;
   }
@@ -20543,4 +20552,223 @@ Value *CodeGenFunction::EmitLoongArchBuiltinExpr(unsigned BuiltinID,
 
   llvm::Function *F = CGM.getIntrinsic(ID);
   return Builder.CreateCall(F, Ops);
+}
+
+Value *CodeGenFunction::EmitRL78BuiltinExpr(unsigned BuiltinID,
+                                            const CallExpr *E) {
+  switch (BuiltinID) {
+  case RL78::BI__builtin_rl78_ei:
+  case RL78::BI__EI:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_ei));
+  case RL78::BI__builtin_rl78_di:
+  case RL78::BI__DI:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_di));
+  case RL78::BI__halt:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_halt));
+  case RL78::BI__stop:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_stop));
+  case RL78::BI__nop:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_nop));
+  case RL78::BI__brk:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_brk));
+  case RL78::BI__builtin_rl78_pswie:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_pswie));
+  case RL78::BI__builtin_rl78_getpswisp:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_getpswisp));
+  case RL78::BI__get_psw:
+    return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_getpsw));
+  case RL78::BI__set_psw:
+  case RL78::BI__builtin_rl78_setpswisp:
+  case RL78::BI__builtin_rl78_ror1:
+  case RL78::BI__builtin_rl78_rol1: {
+    Value *ArgValue = EmitScalarExpr(E->getArg(0));
+    switch (BuiltinID) {
+    case RL78::BI__builtin_rl78_setpswisp:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_setpswisp), 
+                              {ArgValue});
+    case RL78::BI__set_psw:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_setpsw),
+                              {ArgValue});
+    case RL78::BI__builtin_rl78_ror1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_ror1),
+                              {ArgValue});
+    case RL78::BI__builtin_rl78_rol1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_rol1),
+                              {ArgValue});
+    default:
+      llvm_unreachable("unexpected builtin ID");
+    }
+  }
+  case RL78::BI__builtin_rl78_mov1:
+  case RL78::BI__builtin_rl78_and1:
+  case RL78::BI__builtin_rl78_or1:
+  case RL78::BI__builtin_rl78_xor1: {
+    const Expr *Culprit;
+    if (!E->getArg(0)->getType()->isPointerType() ||
+        E->getArg(0)->getType()->getPointeeType().getAddressSpace() ==
+            LangAS::__far_data)
+      CGM.Error(E->getArg(0)->getExprLoc(), "argument is not a near pointer");
+    if (!E->getArg(1)->isConstantInitializer(getContext(), false, &Culprit))
+      CGM.Error(E->getArg(1)->getExprLoc(), "argument is not a compile-time constant");
+    if (!E->getArg(3)->isConstantInitializer(getContext(), false, &Culprit))
+      CGM.Error(E->getArg(3)->getExprLoc(), "argument is not a compile-time constant");
+    
+    Value *ArgValue0;
+    // If the pointer has an an explicit near qualifier, we discard it so we
+    // don't get parameter type matching errors
+    if (E->getArg(0)->getType()->getPointeeType().hasAddressSpace()) {
+      Value *ArgValue0WithAddressSpace = EmitScalarExpr(E->getArg(0));
+      ArgValue0 = Builder.CreatePointerBitCastOrAddrSpaceCast(
+      ArgValue0WithAddressSpace, llvm::PointerType::getWithSamePointeeType(
+          cast<llvm::PointerType>(ArgValue0WithAddressSpace->getType()), /*AddrSpace=*/0));
+    } else {
+      ArgValue0 = EmitScalarExpr(E->getArg(0));
+    }
+
+    Value *ArgValue1 = EmitScalarExpr(E->getArg(1));
+    Value *ArgValue2 = EmitScalarExpr(E->getArg(2));
+    Value *ArgValue3 = EmitScalarExpr(E->getArg(3));
+    switch (BuiltinID) {
+    case RL78::BI__builtin_rl78_mov1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mov1),
+                                {ArgValue0, ArgValue1, ArgValue2, ArgValue3});
+    case RL78::BI__builtin_rl78_and1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_and1),
+                                {ArgValue0, ArgValue1, ArgValue2, ArgValue3});
+    case RL78::BI__builtin_rl78_or1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_or1),
+                                {ArgValue0, ArgValue1, ArgValue2, ArgValue3});
+    case RL78::BI__builtin_rl78_xor1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_xor1),
+                                {ArgValue0, ArgValue1, ArgValue2, ArgValue3});
+    default:
+      llvm_unreachable("unexpected builtin ID");
+    }
+  }
+  case RL78::BI__builtin_rl78_set1:
+  case RL78::BI__set1:
+  case RL78::BI__builtin_rl78_clr1:
+  case RL78::BI__clr1:
+  case RL78::BI__builtin_rl78_not1:
+  case RL78::BI__not1: {
+    const Expr *Culprit;
+    if (!E->getArg(1)->isConstantInitializer(getContext(), false, &Culprit))
+      CGM.Error(E->getArg(1)->getExprLoc(),
+                "argument is not a compile-time constant");
+    if (!E->getArg(0)->getType()->isPointerType() ||
+        E->getArg(0)->getType()->getPointeeType().getAddressSpace() ==
+            LangAS::__far_data ||
+        E->getArg(0)->getType()->getPointeeType().getAddressSpace() ==
+            LangAS::__far_code)
+      CGM.Error(E->getArg(0)->getExprLoc(), "argument is not a near pointer");
+
+    Value *ArgValue0;
+    // If the pointer has an an explicit near qualifier, we discard it so we
+    // don't get parameter type matching errors
+    if (E->getArg(0)->getType()->getPointeeType().hasAddressSpace()) {
+      Value *ArgValue0WithAddressSpace = EmitScalarExpr(E->getArg(0));
+      ArgValue0 = Builder.CreatePointerBitCastOrAddrSpaceCast(
+      ArgValue0WithAddressSpace, llvm::PointerType::getWithSamePointeeType(
+          cast<llvm::PointerType>(ArgValue0WithAddressSpace->getType()), /*AddrSpace=*/0));
+    } else {
+      ArgValue0 = EmitScalarExpr(E->getArg(0));
+    }
+
+    Value *ArgValue1 = EmitScalarExpr(E->getArg(1));
+    switch (BuiltinID) {
+    case RL78::BI__builtin_rl78_set1:
+    case RL78::BI__set1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_set1),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__builtin_rl78_clr1:
+    case RL78::BI__clr1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_clr1),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__builtin_rl78_not1:
+    case RL78::BI__not1:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_not1),
+                                {ArgValue0, ArgValue1});
+    default:
+      llvm_unreachable("unexpected builtin ID");
+    }
+  }
+  case RL78::BI__rolb:
+  case RL78::BI__rorb:
+  case RL78::BI__rorw:
+  case RL78::BI__rolw:
+  case RL78::BI__mulu:
+  case RL78::BI__mului:
+  case RL78::BI__mulsi:
+  case RL78::BI__mulul:
+  case RL78::BI__mulsl:
+  case RL78::BI__divui:
+  case RL78::BI__divul:
+  case RL78::BI__remui:
+  case RL78::BI__remul: {
+    Value *ArgValue0 = EmitScalarExpr(E->getArg(0));
+    Value *ArgValue1 = EmitScalarExpr(E->getArg(1));
+    switch (BuiltinID) {
+    case RL78::BI__rolb:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_rolb),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__rorb:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_rorb),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__rorw:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_rorw),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__rolw:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_rolw),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__mulu:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mulu),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__mului:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mului),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__mulsi:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mulsi),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__mulul:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mulul),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__mulsl:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_mulsl),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__divui:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_divui),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__divul:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_divul),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__remui:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_remui),
+                                {ArgValue0, ArgValue1});
+    case RL78::BI__remul:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_remul),
+                                {ArgValue0, ArgValue1});
+    default:
+      llvm_unreachable("unexpected builtin ID");
+    }
+  }
+  case RL78::BI__macui:
+  case RL78::BI__macsi: {
+    Value *ArgValue0 = EmitScalarExpr(E->getArg(0));
+    Value *ArgValue1 = EmitScalarExpr(E->getArg(1));
+    Value *ArgValue2 = EmitScalarExpr(E->getArg(2));
+    switch (BuiltinID) {
+    case RL78::BI__macui:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_macui),
+                                {ArgValue0, ArgValue1, ArgValue2});
+    case RL78::BI__macsi:
+      return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::rl78_macsi),
+                                {ArgValue0, ArgValue1, ArgValue2});
+    default:
+      llvm_unreachable("unexpected builtin ID");
+    }
+  }
+  default:
+    llvm_unreachable("unexpected builtin ID");
+  }
+  return nullptr;
 }

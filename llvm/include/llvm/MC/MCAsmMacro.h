@@ -59,7 +59,15 @@ public:
     PercentGot_Ofst, PercentGot_Page, PercentGottprel, PercentGp_Rel, PercentHi,
     PercentHigher, PercentHighest, PercentLo, PercentNeg, PercentPcrel_Hi,
     PercentPcrel_Lo, PercentTlsgd, PercentTlsldm, PercentTprel_Hi,
-    PercentTprel_Lo
+    PercentTprel_Lo,
+
+    // RL78 unary expression operators
+    High, Low, HighW, LowW,
+    MirHW, MirLW, SMRLW,
+    StartOf, SizeOf,
+    DataPos, BitPos,
+    // RL78 token kind
+    BitPosition
   };
 
 private:

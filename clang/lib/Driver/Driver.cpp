@@ -47,6 +47,7 @@
 #include "ToolChains/PPCLinux.h"
 #include "ToolChains/PS4CPU.h"
 #include "ToolChains/RISCVToolchain.h"
+#include "ToolChains/RL78.h"
 #include "ToolChains/SPIRV.h"
 #include "ToolChains/Solaris.h"
 #include "ToolChains/TCE.h"
@@ -1361,6 +1362,16 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
                     .Case("cwd", SaveTempsCwd)
                     .Case("obj", SaveTempsObj)
                     .Default(SaveTempsCwd);
+    if (StringRef(TargetTriple).startswith("rl78")) {
+      // save-temps is incompatibile with frenesas-extensions, since only
+      // parsing is supported when using CC-RL asm syntax, generation is still
+      // in GCC syntax.
+      Arg *RenesasExtensions =
+          Args.getLastArg(options::OPT_frenesas_extensions);
+      if (SaveTemps && RenesasExtensions)
+        Diags.Report(diag::err_drv_argument_not_allowed_with)
+            << A->getSpelling() << RenesasExtensions->getSpelling();
+    }
   }
 
   if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
@@ -6326,6 +6337,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
               std::make_unique<toolchains::RISCVToolChain>(*this, Target, Args);
         else
           TC = std::make_unique<toolchains::BareMetal>(*this, Target, Args);
+        break;
+      case llvm::Triple::RL78:
+        TC = std::make_unique<toolchains::RL78ToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::ve:
         TC = std::make_unique<toolchains::VEToolChain>(*this, Target, Args);

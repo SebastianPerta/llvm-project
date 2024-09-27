@@ -2693,6 +2693,15 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals, const DependentAddressSp
       case LangAS::ptr64:
         ASString = "ptr64";
         break;
+      case LangAS::__near:
+        ASString = "__near";
+        break;
+      case LangAS::__far_data:
+        ASString = "__far";
+        break;
+      case LangAS::__far_code:
+        ASString = "__far";
+        break;
       }
     }
     if (!ASString.empty())
@@ -2885,6 +2894,21 @@ void CXXNameMangler::mangleType(QualType T) {
       mangleType(QualType(splitDAST.Ty, 0));
     } else {
       mangleQualifiers(quals);
+
+      // TODO: RL78 see if this should be moved to split()
+      if (isa<FunctionProtoType>(ty->getUnqualifiedDesugaredType()) &&
+          cast<FunctionProtoType>(ty->getUnqualifiedDesugaredType())
+              ->getFar()) {
+        // We need to remove __far_code from it, otherwise we end up recursing
+        // indefinitely.
+        const FunctionProtoType *FPT = ty->castAs<FunctionProtoType>();
+        FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+        EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+        ty = Context.getASTContext()
+                 .getFunctionType(FPT->getReturnType(), FPT->getParamTypes(),
+                                  EPI)
+                 .getTypePtr();
+      }
 
       // Recurse:  even if the qualified type isn't yet substitutable,
       // the unqualified type might be.
@@ -4883,6 +4907,15 @@ recurse:
       unsigned DiagID = Diags.getCustomDiagID(
           DiagnosticsEngine::Error,
           "cannot yet mangle __builtin_omp_required_simd_align expression");
+      Diags.Report(DiagID);
+      return;
+    }
+    case UETT_SecTop:
+    case UETT_SecEnd: {
+      DiagnosticsEngine &Diags = Context.getDiags();
+      unsigned DiagID = Diags.getCustomDiagID(
+          DiagnosticsEngine::Error,
+          "cannot yet mangle __sectop/__secend expression");
       Diags.Report(DiagID);
       return;
     }

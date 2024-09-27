@@ -106,12 +106,18 @@ struct __lce_ta<__a, __c, 0, (unsigned long long)(~0), false>
     }
 };
 
+#ifdef __RL78__
+#define __rl78_long long
+#else
+#define __rl78_long 
+#endif
+
 // 32
 
 template <unsigned long long _Ap, unsigned long long _Cp, unsigned long long _Mp>
-struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), true>
+struct __lce_ta<_Ap, _Cp, _Mp, (unsigned __rl78_long)(~0), true>
 {
-    typedef unsigned result_type;
+    typedef unsigned __rl78_long result_type;
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
@@ -130,9 +136,9 @@ struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), true>
 };
 
 template <unsigned long long _Ap, unsigned long long _Mp>
-struct __lce_ta<_Ap, 0, _Mp, unsigned(~0), true>
+struct __lce_ta<_Ap, 0, _Mp, (unsigned __rl78_long)(~0), true>
 {
-    typedef unsigned result_type;
+    typedef unsigned __rl78_long result_type;
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
@@ -149,9 +155,9 @@ struct __lce_ta<_Ap, 0, _Mp, unsigned(~0), true>
 };
 
 template <unsigned long long _Ap, unsigned long long _Cp, unsigned long long _Mp>
-struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), false>
+struct __lce_ta<_Ap, _Cp, _Mp, (unsigned __rl78_long)(~0), false>
 {
-    typedef unsigned result_type;
+    typedef unsigned __rl78_long result_type;
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
@@ -163,9 +169,9 @@ struct __lce_ta<_Ap, _Cp, _Mp, unsigned(~0), false>
 };
 
 template <unsigned long long _Ap, unsigned long long _Cp>
-struct __lce_ta<_Ap, _Cp, 0, unsigned(~0), false>
+struct __lce_ta<_Ap, _Cp, 0, (unsigned __rl78_long)(~0), false>
 {
-    typedef unsigned result_type;
+    typedef unsigned __rl78_long result_type;
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
@@ -184,7 +190,7 @@ struct __lce_ta<__a, __c, __m, (unsigned short)(~0), __b>
     _LIBCPP_INLINE_VISIBILITY
     static result_type next(result_type __x)
     {
-        return static_cast<result_type>(__lce_ta<__a, __c, __m, unsigned(~0)>::next(__x));
+        return static_cast<result_type>(__lce_ta<__a, __c, __m, (unsigned __rl78_long)(~0)>::next(__x));
     }
 };
 

@@ -1431,6 +1431,11 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
       Res = Actions.ActOnUnaryOp(getCurScope(), SavedLoc, SavedKind, Res.get());
     return Res;
   }
+  case tok::kw___sectop:
+  case tok::kw___secend:
+    if (NotPrimaryExpression)
+      *NotPrimaryExpression = true;
+    return ParseUnaryExprOrTypeTraitExpression();
   case tok::kw__Alignof:   // unary-expression: '_Alignof' '(' type-name ')'
     if (!getLangOpts().C11)
       Diag(Tok, diag::ext_c11_feature) << Tok.getName();
@@ -2316,7 +2321,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
   assert(OpTok.isOneOf(tok::kw_typeof, tok::kw_typeof_unqual, tok::kw_sizeof,
                        tok::kw___alignof, tok::kw_alignof, tok::kw__Alignof,
                        tok::kw_vec_step,
-                       tok::kw___builtin_omp_required_simd_align) &&
+                       tok::kw___builtin_omp_required_simd_align, tok::kw___sectop, tok::kw___secend) &&
          "Not a typeof/sizeof/alignof/vec_step expression!");
 
   ExprResult Operand;
@@ -2437,7 +2442,8 @@ ExprResult Parser::ParseSYCLUniqueStableNameExpression() {
 ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
   assert(Tok.isOneOf(tok::kw_sizeof, tok::kw___alignof, tok::kw_alignof,
                      tok::kw__Alignof, tok::kw_vec_step,
-                     tok::kw___builtin_omp_required_simd_align) &&
+                     tok::kw___builtin_omp_required_simd_align,
+                     tok::kw___sectop, tok::kw___secend) &&
          "Not a sizeof/alignof/vec_step expression!");
   Token OpTok = Tok;
   ConsumeToken();
@@ -2516,6 +2522,10 @@ ExprResult Parser::ParseUnaryExprOrTypeTraitExpression() {
     ExprKind = UETT_VecStep;
   else if (OpTok.is(tok::kw___builtin_omp_required_simd_align))
     ExprKind = UETT_OpenMPRequiredSimdAlign;
+  else if (OpTok.is(tok::kw___sectop))
+    ExprKind = UETT_SecTop;
+  else if (OpTok.is(tok::kw___secend))
+    ExprKind = UETT_SecEnd;
 
   if (isCastExpr)
     return Actions.ActOnUnaryExprOrTypeTraitExpr(OpTok.getLocation(),

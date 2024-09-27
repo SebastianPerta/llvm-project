@@ -301,9 +301,9 @@ if (LIBCXXABI_ENABLE_ASSERTIONS)
   endif()
   # On Release builds cmake automatically defines NDEBUG, so we
   # explicitly undefine it:
-  if (uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
-    list(APPEND LIBCXXABI_COMPILE_FLAGS -UNDEBUG)
-  endif()
+  #if (uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+  #  list(APPEND LIBCXXABI_COMPILE_FLAGS -UNDEBUG)
+  #endif()
 else()
   if (NOT uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
     list(APPEND LIBCXXABI_COMPILE_FLAGS -DNDEBUG)

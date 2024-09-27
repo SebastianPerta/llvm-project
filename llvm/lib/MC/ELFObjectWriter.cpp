@@ -606,8 +606,8 @@ bool ELFWriter::isInSymtab(const MCAsmLayout &Layout, const MCSymbolELF &Symbol,
   if (Symbol.isTemporary())
     return false;
 
-  if (Symbol.getType() == ELF::STT_SECTION)
-    return false;
+  /*if (Symbol.getType() == ELF::STT_SECTION)
+    return false;*/ //TODO commented out to ensure cc-rl rlink compatibility
 
   return true;
 }
@@ -724,10 +724,10 @@ void ELFWriter::computeSymbolTable(
     StringRef Name = Symbol.getName();
 
     // Sections have their own string table
-    if (Symbol.getType() != ELF::STT_SECTION) {
+    //if (Symbol.getType() != ELF::STT_SECTION) { //TODO commented out to ensure cc-rl rlink compatibility
       MSD.Name = Name;
       StrTabBuilder.add(Name);
-    }
+    //}
 
     if (Local)
       LocalSymbolData.push_back(MSD);

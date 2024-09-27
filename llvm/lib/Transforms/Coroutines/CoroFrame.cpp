@@ -2431,12 +2431,17 @@ static void lowerLocalAllocas(ArrayRef<CoroAllocaAllocInst*> LocalAllocas,
     auto M = AI->getModule();
     IRBuilder<> Builder(AI);
 
+    // FIXME: is there a better way to figure it out here if a RL78 target?
+    auto StackPtrTy = Type::getInt8PtrTy(M->getContext(),
+        StringRef(M->getTargetTriple()).startswith("rl78") ?
+        M->getDataLayout().getAllocaAddrSpace() : 0);
+
     // Save the stack depth.  Try to avoid doing this if the stackrestore
     // is going to immediately precede a return or something.
     Value *StackSave = nullptr;
     if (localAllocaNeedsStackSave(AI))
       StackSave = Builder.CreateCall(
-                            Intrinsic::getDeclaration(M, Intrinsic::stacksave));
+          Intrinsic::getDeclaration(M, Intrinsic::stacksave, StackPtrTy));
 
     // Allocate memory.
     auto Alloca = Builder.CreateAlloca(Builder.getInt8Ty(), AI->getSize());
@@ -2454,8 +2459,8 @@ static void lowerLocalAllocas(ArrayRef<CoroAllocaAllocInst*> LocalAllocas,
         auto FI = cast<CoroAllocaFreeInst>(U);
         if (StackSave) {
           Builder.SetInsertPoint(FI);
-          Builder.CreateCall(
-                    Intrinsic::getDeclaration(M, Intrinsic::stackrestore),
+          Builder.CreateCall(Intrinsic::getDeclaration(
+                                 M, Intrinsic::stackrestore, StackPtrTy),
                              StackSave);
         }
       }

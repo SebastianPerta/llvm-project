@@ -16,6 +16,7 @@
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
+#include "Arch/RL78.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
 #include "Arch/VE.h"
@@ -45,6 +46,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Support/CharSet.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Compression.h"
@@ -440,6 +442,7 @@ static bool useFramePointerForTargetByDefault(const ArgList &Args,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
   case llvm::Triple::msp430:
+  case llvm::Triple::RL78:
     // XCore never wants frame pointers, regardless of OS.
     // WebAssembly never wants frame pointers.
     return false;
@@ -1732,6 +1735,10 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
 
+  case llvm::Triple::RL78:
+    AddRL78TargetArgs(Args, CmdArgs);
+    break;
+
   case llvm::Triple::sparc:
   case llvm::Triple::sparcel:
   case llvm::Triple::sparcv9:
@@ -2204,6 +2211,169 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
           << A->getSpelling() << Val;
     }
   }
+}
+
+void Clang::AddRL78TargetArgs(const ArgList &Args,
+                              ArgStringList &CmdArgs) const {
+  
+  //TODO: In case of non -mfar-code and plt disabled it's the only case when we can use jump tables.
+  // becuase there's no 20 bit indirect jump just 16 bit.
+  CmdArgs.push_back("-fno-jump-tables");
+
+  //TODO: quick hack, disable vla properly for RL78.
+  //CmdArgs.push_back("-Werror=vla");
+  CmdArgs.push_back("-Wvla");
+
+  if (Args.getLastArg(options::OPT_ffinite_loops) == nullptr) {
+    // By default, we don't want to replace infinite loops with unreachable.
+    CmdArgs.push_back("-fno-finite-loops");
+  }
+
+  //TODO: maybe we can remove this at some point.
+  CmdArgs.push_back("-fno-aligned-allocation");
+
+  //for CC-RL calling convention compatibility
+  if (Args.hasArg(options::OPT_frenesas_extensions))
+    CmdArgs.push_back("-fshort-enums");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-join-splitedges");
+
+  // Since the optimizer is getting smarter in figuring out undefined behavior/poison
+  // cases, lets trap instead of eliminating everything (including the return statement).
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("--trap-unreachable=true");
+
+  Arg *OptArg = Args.getLastArg(options::OPT_O_Group);
+  char OptLevel = (OptArg && OptArg->getNumValues()) ? OptArg->getValue()[0] : '\0';
+
+  // Aggressive (-O3) speed optimizations
+  if (OptLevel == '3') {
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-inline-threshold=600");
+
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-unroll-runtime");
+
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-enable-dfa-jump-thread");
+
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-allow-unroll-and-jam");
+
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-enable-unroll-and-jam");
+
+    CmdArgs.push_back("-mllvm");
+    CmdArgs.push_back("-unroll-runtime-epilog");
+  }
+
+  if (OptLevel != 's' && OptLevel != 'z')
+    return;
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-split-spill-mode=size");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-available-load-scan-limit=2");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-adce-remove-loops=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-enable-load-pre=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-addr-sink-combine-base-offs=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-addr-sink-using-gep=false");
+
+  // TODO: See if there is a replacement.
+  // CmdArgs.push_back("-mllvm");
+  // CmdArgs.push_back("-consider-local-interval-cost=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-block-placement=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-complex-addr-modes=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-machine-cse=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-enable-pre=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-sched-height=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-enable-global-merge=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-extra-vectorizer-passes=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-force-split-store=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-global-merge-on-const=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-keep-loops=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-no-phi-elim-live-out-early-exit=true");
+
+  // TODO: See if there is a replacement.
+  // CmdArgs.push_back("-mllvm");
+  // CmdArgs.push_back("-simplifycfg-dup-ret=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-speculate-one-expensive-inst=false");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-bonus-inst-threshold=0");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-min-jump-table-entries=5");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-optsize-jump-table-density=56");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-phi-node-folding-threshold=0");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-static-likely-prob=72");
+  
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-tail-dup-indirect-size=14");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-tail-merge-size=2");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-tail-merge-threshold=210");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-triangle-chain-count=8");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-unroll-threshold=9");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-replexitval=never");
+  
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-lsr=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-machine-licm=true");
+
+  CmdArgs.push_back("-mllvm");
+  CmdArgs.push_back("-disable-phi-elim-edge-splitting=true");
 }
 
 void Clang::AddSparcTargetArgs(const ArgList &Args,
@@ -6688,6 +6858,54 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    IsWindowsMSVC))
     CmdArgs.push_back("-fms-extensions");
 
+  if (Args.hasFlag(options::OPT_frenesas_extensions, options::OPT_fno_renesas_extensions, false))
+    CmdArgs.push_back("-frenesas-extensions");
+
+  if (Args.getLastArg(options::OPT_frenesas_vaarg))
+    CmdArgs.push_back("-frenesas-vaarg");
+
+  Arg *mirrorSource = Args.getLastArg(options::OPT_mirror_source_EQ);
+  if (mirrorSource) {
+    if (mirrorSource->containsValue("0")) {
+      CmdArgs.push_back("-mmirror-source-0");
+    } else if (mirrorSource->containsValue("1")) {
+      CmdArgs.push_back("-mmirror-source-1");
+    } else if (mirrorSource->containsValue("common")) {
+      CmdArgs.push_back("-mmirror-source-common");
+    }
+  } else {
+    CmdArgs.push_back("-mmirror-source-0");
+  }
+
+  if ((CPU == "RL78_S1") &&
+      (Args.getLastArg(options::OPT_mirror_source_1) ||
+       (mirrorSource && mirrorSource->containsValue("1"))))
+    D.Diag(diag::err_drv_argument_not_allowed_with) << "-mirror-source=1"
+                                                    << "-mcpu=S1";
+
+  const Arg *mCode =
+      Args.getLastArg(options::OPT_mnear_code, options::OPT_mfar_code);
+  if (mCode != nullptr &&
+      mCode->getOption().getID() == options::OPT_mfar_code) {
+    CmdArgs.push_back("-mfar-code");
+  }
+
+  const Arg *mData =
+      Args.getLastArg(options::OPT_mnear_data, options::OPT_mfar_data);
+  if (mData != nullptr &&
+      mData->getOption().getID() == options::OPT_mfar_data) {
+    CmdArgs.push_back("-mfar-data");
+  }
+
+  const Arg *mRom = 
+    Args.getLastArg(options::OPT_mcommon_rom, options::OPT_mnear_rom, options::OPT_mfar_rom);
+  if (mRom != nullptr) {
+     if(mRom->getOption().getID() == options::OPT_mfar_rom) 
+      CmdArgs.push_back("-mfar-rom");
+     else if(mRom->getOption().getID() == options::OPT_mcommon_rom) 
+      CmdArgs.push_back("-mcommon-rom");
+  }
+
   // -fms-compatibility=0 is default.
   bool IsMSVCCompat = Args.hasFlag(
       options::OPT_fms_compatibility, options::OPT_fno_ms_compatibility,
@@ -6846,39 +7064,40 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fapplication-extension");
 
   // Handle GCC-style exception args.
+  //TODO: look for a more elegant solution for this for RL78 (maybe when constructing compiler job).
   bool EH = false;
-  if (!C.getDriver().IsCLMode())
-    EH = addExceptionArgs(Args, InputType, TC, KernelOrKext, Runtime, CmdArgs);
+  //if (!C.getDriver().IsCLMode())
+  //  EH = addExceptionArgs(Args, InputType, TC, KernelOrKext, Runtime, CmdArgs);
 
   // Handle exception personalities
-  Arg *A = Args.getLastArg(
-      options::OPT_fsjlj_exceptions, options::OPT_fseh_exceptions,
-      options::OPT_fdwarf_exceptions, options::OPT_fwasm_exceptions);
-  if (A) {
-    const Option &Opt = A->getOption();
-    if (Opt.matches(options::OPT_fsjlj_exceptions))
-      CmdArgs.push_back("-exception-model=sjlj");
-    if (Opt.matches(options::OPT_fseh_exceptions))
-      CmdArgs.push_back("-exception-model=seh");
-    if (Opt.matches(options::OPT_fdwarf_exceptions))
-      CmdArgs.push_back("-exception-model=dwarf");
-    if (Opt.matches(options::OPT_fwasm_exceptions))
-      CmdArgs.push_back("-exception-model=wasm");
-  } else {
-    switch (TC.GetExceptionModel(Args)) {
-    default:
-      break;
-    case llvm::ExceptionHandling::DwarfCFI:
-      CmdArgs.push_back("-exception-model=dwarf");
-      break;
-    case llvm::ExceptionHandling::SjLj:
-      CmdArgs.push_back("-exception-model=sjlj");
-      break;
-    case llvm::ExceptionHandling::WinEH:
-      CmdArgs.push_back("-exception-model=seh");
-      break;
-    }
-  }
+  //Arg *A = Args.getLastArg(
+  //    options::OPT_fsjlj_exceptions, options::OPT_fseh_exceptions,
+  //    options::OPT_fdwarf_exceptions, options::OPT_fwasm_exceptions);
+  //if (A) {
+  //  const Option &Opt = A->getOption();
+  //  if (Opt.matches(options::OPT_fsjlj_exceptions))
+  //    CmdArgs.push_back("-exception-model=sjlj");
+  //  if (Opt.matches(options::OPT_fseh_exceptions))
+  //    CmdArgs.push_back("-exception-model=seh");
+  //  if (Opt.matches(options::OPT_fdwarf_exceptions))
+  //    CmdArgs.push_back("-exception-model=dwarf");
+  //  if (Opt.matches(options::OPT_fwasm_exceptions))
+  //    CmdArgs.push_back("-exception-model=wasm");
+  //} else {
+  //  switch (TC.GetExceptionModel(Args)) {
+  //  default:
+  //    break;
+  //  case llvm::ExceptionHandling::DwarfCFI:
+  //    CmdArgs.push_back("-exception-model=dwarf");
+  //    break;
+  //  case llvm::ExceptionHandling::SjLj:
+  //    CmdArgs.push_back("-exception-model=sjlj");
+  //    break;
+  //  case llvm::ExceptionHandling::WinEH:
+  //    CmdArgs.push_back("-exception-model=seh");
+  //    break;
+  //  }
+  //}
 
   // C++ "sane" operator new.
   Args.addOptOutFlag(CmdArgs, options::OPT_fassume_sane_operator_new,
@@ -6960,32 +7179,45 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
 
-  // -fsigned-bitfields is default, and clang doesn't yet support
-  // -funsigned-bitfields.
-  if (!Args.hasFlag(options::OPT_fsigned_bitfields,
-                    options::OPT_funsigned_bitfields, true))
-    D.Diag(diag::warn_drv_clang_unsupported)
-        << Args.getLastArg(options::OPT_funsigned_bitfields)->getAsString(Args);
+  // -fsigned-bitfields is default.
+  if (!Args.hasFlag(options::OPT_fsigned_bitfields, options::OPT_funsigned_bitfields, true))
+    CmdArgs.push_back("-funsigned-bitfields");
 
-  // -fsigned-bitfields is default, and clang doesn't support -fno-for-scope.
+  // clang doesn't support -fno-for-scope.
   if (!Args.hasFlag(options::OPT_ffor_scope, options::OPT_fno_for_scope, true))
     D.Diag(diag::err_drv_clang_unsupported)
         << Args.getLastArg(options::OPT_fno_for_scope)->getAsString(Args);
 
-  // -finput_charset=UTF-8 is default. Reject others
+  // Set the default finput-charset as UTF-8.
+  CmdArgs.push_back("-finput-charset");
+  CmdArgs.push_back("UTF-8");
   if (Arg *inputCharset = Args.getLastArg(options::OPT_finput_charset_EQ)) {
     StringRef value = inputCharset->getValue();
-    if (!value.equals_insensitive("utf-8"))
-      D.Diag(diag::err_drv_invalid_value) << inputCharset->getAsString(Args)
-                                          << value;
+    llvm::ErrorOr<llvm::CharSetConverter> ErrorOrConverter =
+        llvm::CharSetConverter::create(value.data(), "UTF-8");
+    if (ErrorOrConverter) {
+      CmdArgs.push_back("-finput-charset");
+      CmdArgs.push_back(Args.MakeArgString(value));
+    } else {
+      D.Diag(diag::err_drv_invalid_value)
+          << inputCharset->getAsString(Args) << value;
+    }
   }
 
-  // -fexec_charset=UTF-8 is default. Reject others
+  // Set the default fexec-charset as UTF-8.
+  CmdArgs.push_back("-fexec-charset");
+  CmdArgs.push_back("UTF-8");
   if (Arg *execCharset = Args.getLastArg(options::OPT_fexec_charset_EQ)) {
     StringRef value = execCharset->getValue();
-    if (!value.equals_insensitive("utf-8"))
-      D.Diag(diag::err_drv_invalid_value) << execCharset->getAsString(Args)
-                                          << value;
+    llvm::ErrorOr<llvm::CharSetConverter> ErrorOrConverter =
+        llvm::CharSetConverter::create("UTF-8", value.data());
+    if (ErrorOrConverter) {
+      CmdArgs.push_back("-fexec-charset");
+      CmdArgs.push_back(Args.MakeArgString(value));
+    } else {
+      D.Diag(diag::err_drv_invalid_value)
+          << execCharset->getAsString(Args) << value;
+    }
   }
 
   RenderDiagnosticsOptions(D, Args, CmdArgs);
@@ -8258,6 +8490,19 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
+  case llvm::Triple::RL78: {
+    // Default include paths.
+    CmdArgs.push_back("-I.");
+    std::string FileName = Inputs[0].getFilename();
+    SmallString<1024> FileNameBuf(FileName);
+    llvm::sys::path::remove_filename(FileNameBuf);
+    if (FileNameBuf.compare("") != 0)
+      CmdArgs.push_back(Args.MakeArgString("-I" + FileNameBuf));
+    if (Arg *A = Args.getLastArg(options::OPT_frenesas_extensions)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-rl78-ccrl-asm-syntax");
+    }
+  } break;
   }
 
   // Consume all the warning flags. Usually this would be handled more

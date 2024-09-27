@@ -380,6 +380,12 @@ public:
     IncompleteOnly = 3,
   };
 
+  enum class RL78RomModelKind {
+    Near = 0,
+    Far = 1,
+    Common = 2,
+  };
+
 public:
   /// The used language standard.
   LangStandard::Kind LangStd;
@@ -490,6 +496,12 @@ public:
   // Indicates whether we should keep all nullptr checks for pointers
   // received as a result of a standard operator new (-fcheck-new)
   bool CheckNew = false;
+
+  /// Name of the input charset to convert to the internal charset.
+  std::string InputCharset;
+
+  /// Name of the exec charset to convert the internal charset to.
+  std::string ExecCharset;
 
   LangOptions();
 

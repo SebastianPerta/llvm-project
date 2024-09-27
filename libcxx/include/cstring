@@ -100,6 +100,27 @@ using ::memset _LIBCPP_USING_IF_EXISTS;
 using ::strerror _LIBCPP_USING_IF_EXISTS;
 using ::strlen _LIBCPP_USING_IF_EXISTS;
 
+#if defined(__RL78__)
+using ::_COM_memchr_f _LIBCPP_USING_IF_EXISTS;
+using ::_COM_memcmp_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_memcpy_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_memmove_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_memset_f _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strcat_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strchr_f _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strcmp_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strcpy_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strlen_f _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strncat_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strncmp_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strncpy_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strpbrk_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strrchr_f _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strspn_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strstr_ff _LIBCPP_USING_IF_EXISTS;
+using ::_COM_strcspn_ff _LIBCPP_USING_IF_EXISTS;
+#endif
+
 _LIBCPP_END_NAMESPACE_STD
 
 #endif // _LIBCPP_CSTRING

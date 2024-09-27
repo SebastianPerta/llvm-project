@@ -76,8 +76,15 @@ bool Preprocessor::EnterSourceFile(FileID FID, ConstSearchDirIterator CurDir,
     MaxIncludeStackDepth = IncludeMacroStack.size();
 
   // Get the MemoryBuffer for this FID, if it fails, we fail.
-  std::optional<llvm::MemoryBufferRef> InputFile =
-      getSourceManager().getBufferOrNone(FID, Loc);
+  std::optional<llvm::MemoryBufferRef> InputFile;
+  if (FID == SourceMgr.getMainFileID()) {
+    llvm::CharSetConverter *converter =
+        LiteralConv.getConverter(ConversionAction::ToInternalCharset);
+    InputFile = getSourceManager().getBufferOrNone(FID, Loc, converter);
+  } else {
+    InputFile = getSourceManager().getBufferOrNone(FID, Loc);
+  }
+      
   if (!InputFile) {
     SourceLocation FileStart = SourceMgr.getLocForStartOfFile(FID);
     Diag(Loc, diag::err_pp_error_opening_file)

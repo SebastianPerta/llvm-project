@@ -58,7 +58,11 @@ inline constexpr uint16_t __POW10_OFFSET[__TABLE_SIZE] = {
   1084, 1118, 1153, 1188
 };
 
+#ifdef __RL78__
+inline constexpr uint64_t __far __POW10_SPLIT_f[1224][3] = {
+#else
 inline constexpr uint64_t __POW10_SPLIT[1224][3] = {
+#endif
   {                    1u,    72057594037927936u,                    0u },
   {   699646928636035157u,             72057594u,                    0u },
   {                    1u,                    0u,                  256u },
@@ -1285,6 +1289,17 @@ inline constexpr uint64_t __POW10_SPLIT[1224][3] = {
   {  8310173728816391804u,               197658u,                    0u },
 };
 
+#ifdef __RL78__
+template <unsigned N>
+struct __split_row { uint64_t r[N]; constexpr operator const uint64_t* const () const { return r; } };
+inline constexpr struct {
+    constexpr auto operator[](size_t idx) const {
+        const auto s = __POW10_SPLIT_f[idx];
+        return __split_row<3>{ s[0], s[1], s[2] };
+    }
+} __POW10_SPLIT;
+#endif
+
 inline constexpr int __TABLE_SIZE_2 = 69;
 inline constexpr int __ADDITIONAL_BITS_2 = 120;
 
@@ -1308,7 +1323,11 @@ inline constexpr uint8_t __MIN_BLOCK_2[__TABLE_SIZE_2] = {
     30,   30,   31,   31,   32,   32,   33,   34,    0
 };
 
+#ifdef __RL78__
+alignas(65536) inline constexpr uint64_t __far __POW10_SPLIT_2_0[2730][3] = {
+#else
 inline constexpr uint64_t __POW10_SPLIT_2[3133][3] = {
+#endif
   {                    0u,                    0u,              3906250u },
   {                    0u,                    0u,         202000000000u },
   {                    0u, 11153727427136454656u,                   59u },
@@ -4039,6 +4058,10 @@ inline constexpr uint64_t __POW10_SPLIT_2[3133][3] = {
   { 16754772009970777891u,  9066702926218949317u,         241915860481u },
   { 11722573031602862387u,  9119392417260546810u,           1491506950u },
   {  7363764277467092384u,  9723021096578315109u,           6494363253u },
+#ifdef __RL78__
+};
+alignas(65536) inline constexpr uint64_t __far __POW10_SPLIT_2_1[403][3] = {
+#endif
   {  6733958494847390772u, 14787464248751217597u,         117527086029u },
   {  8799796600227451045u,  3733434565920249133u,         205801630043u },
   { 10512023194742249826u,  6643788868836820841u,          91202389893u },
@@ -4443,6 +4466,16 @@ inline constexpr uint64_t __POW10_SPLIT_2[3133][3] = {
   {                    0u,                    0u,         241525390625u },
   {                    0u,                    0u,          33000000000u },
 };
+
+#ifdef __RL78__
+inline constexpr struct {
+    constexpr auto operator[](size_t idx) const {
+        constexpr auto _sidx = (unsigned)(sizeof(__POW10_SPLIT_2_0) / sizeof(*__POW10_SPLIT_2_0));
+        const auto _src = (idx < _sidx) ? __POW10_SPLIT_2_0[idx] : __POW10_SPLIT_2_1[idx - _sidx];
+        return __split_row<3>{ _src[0], _src[1], _src[2] };
+    }
+} __POW10_SPLIT_2;
+#endif
 
 _LIBCPP_END_NAMESPACE_STD
 

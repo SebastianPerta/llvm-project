@@ -1280,6 +1280,7 @@ static void readConfigs(opt::InputArgList &args) {
   config->relaxGP = args.hasFlag(OPT_relax_gp, OPT_no_relax_gp, false);
   config->rpath = getRpath(args);
   config->relocatable = args.hasArg(OPT_relocatable);
+  config->RL78FarCode = args.hasArg(OPT_mfar_code);
 
   if (args.hasArg(OPT_save_temps)) {
     // --save-temps implies saving all temps.
@@ -1709,6 +1710,8 @@ static void setConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
   config->pcRelOptimize =
       args.hasFlag(OPT_pcrel_optimize, OPT_no_pcrel_optimize, m == EM_PPC64);
+  config->strideDSPMemoryArea = 
+    args.hasFlag(OPT_stride_dsp_memory_area, OPT_no_stride_dsp_memory_area, false);
 }
 
 static bool isFormatBinary(StringRef s) {

@@ -36,6 +36,8 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#ifndef __RL78_32BIT_DOUBLES__ // not supported on RL78 unless -m64bit-doubles is specified
+
 // Avoid formatting to keep the changes with the original code minimal.
 // clang-format off
 
@@ -50,6 +52,12 @@
 #include "include/ryu/d2s_intrinsics.h"
 #include "include/ryu/digit_table.h"
 #include "include/ryu/ryu.h"
+
+#ifdef __RL78__
+#define __rl78_far __far
+#else
+#define __rl78_far
+#endif
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -423,7 +431,7 @@ struct __floating_decimal_64 {
         // Rounding can affect the number of digits.
         // For example, 1e23 is exactly "99999999999999991611392" which is 23 digits instead of 24.
         // We can use a lookup table to detect this and adjust the total length.
-        static constexpr uint8_t _Adjustment[309] = {
+        static constexpr uint8_t __rl78_far _Adjustment[309] = {
           0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,1,0,1,0,1,1,1,0,1,1,1,0,0,0,0,0,
           1,1,0,0,1,0,1,1,1,0,0,0,0,1,1,1,1,0,0,0,1,1,1,1,0,0,0,1,1,1,1,0,1,0,1,0,1,1,0,0,0,0,1,1,1,
           1,0,0,0,0,0,0,0,1,1,0,1,1,0,0,1,0,1,0,1,0,1,1,0,0,0,0,0,1,1,1,0,0,1,1,1,1,1,0,1,0,1,1,0,1,
@@ -472,7 +480,7 @@ struct __floating_decimal_64 {
         // same output for two different doubles X and Y). This allows Ryu's output to be used (zero-filled).
 
         // (2^53 - 1) / 5^0 (for indexing), (2^53 - 1) / 5^1, ..., (2^53 - 1) / 5^22
-        static constexpr uint64_t _Max_shifted_mantissa[23] = {
+        static constexpr uint64_t __rl78_far _Max_shifted_mantissa[23] = {
           9007199254740991u, 1801439850948198u, 360287970189639u, 72057594037927u, 14411518807585u,
           2882303761517u, 576460752303u, 115292150460u, 23058430092u, 4611686018u, 922337203u, 184467440u,
           36893488u, 7378697u, 1475739u, 295147u, 59029u, 11805u, 2361u, 472u, 94u, 18u, 3u };
@@ -781,3 +789,5 @@ struct __floating_decimal_64 {
 _LIBCPP_END_NAMESPACE_STD
 
 // clang-format on
+
+#endif // __RL78_32BIT_DOUBLES__

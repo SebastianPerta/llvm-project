@@ -698,6 +698,37 @@ enum {
 #include "ELFRelocs/Sparc.def"
 };
 
+// RL78 Specific e_flags
+enum : unsigned {
+  //Functional unit
+  EF_RL78_FU_EXIST = 0x01,
+  //Extension instructions
+  EF_RL78_EI_EXIST = 0x08,
+  //MAA mode  
+  EF_RL78_MAA_0 = 0x40,
+  EF_RL78_MAA_1 = 0xc0,
+  //CPU  
+  EF_RL78_CPU_8BIT = 0x100,
+  EF_RL78_CPU_16BIT = 0x300,
+  //Size of double in bytes  
+  EF_RL78_DOUBLE_4 = 0x400,
+  EF_RL78_DOUBLE_8 = 0xc00,
+  //Default function pointer  
+  EF_RL78_TEXT_NEAR = 0x1000,
+  EF_RL78_TEXT_FAR = 0x3000,
+  //Default data pointer  
+  EF_RL78_DATA_NEAR = 0x4000,
+  EF_RL78_DATA_FAR = 0xc000,
+  //Default constant data pointer  
+  EF_RL78_RODATA_NEAR = 0x10000,
+  EF_RL78_RODATA_FAR = 0x30000,  
+};
+
+// ELF Relocation type for RL78.
+enum {
+#include "ELFRelocs/RL78.def"
+};
+
 // AMDGPU specific e_flags.
 enum : unsigned {
   // Processor selection mask for EF_AMDGPU_MACH_* values.
@@ -1118,9 +1149,16 @@ enum : unsigned {
 
   // This section should not be garbage collected by the linker.
   SHF_GNU_RETAIN = 0x200000,
-
+  
+  // For the sake of compatibility with CC-RL, we need to resolve the conflict
+  // by changing the SHF_EXCLUDE flag.
+#ifdef USE_SHF_RENESAS_ABS
+  SHF_RENESAS_ABS = 0x80000000U,
+  SHF_EXCLUDE = 0x40000000U,
+#else
   // This section is excluded from the final executable or shared library.
   SHF_EXCLUDE = 0x80000000U,
+#endif
 
   // Start of target-specific flags.
 

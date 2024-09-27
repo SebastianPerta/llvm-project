@@ -50,6 +50,43 @@ __loadword(const void* __p)
 template <class _Size, size_t = sizeof(_Size)*__CHAR_BIT__>
 struct __murmur2_or_cityhash;
 
+#ifdef __RL78__
+template <class _Size>
+struct __murmur2_or_cityhash<_Size, 16>
+{
+    inline _Size operator()(const void* __key, _Size __len)
+         _LIBCPP_DISABLE_UBSAN_UNSIGNED_INTEGER_CHECK;
+};
+
+// murmur2
+template <class _Size>
+_Size
+__murmur2_or_cityhash<_Size, 16>::operator()(const void* __key, _Size __len)
+{
+    _Size __h = __len;
+    const _Size __m = 23131;
+    const _Size __r = 8;
+    const unsigned char* __data = static_cast<const unsigned char*>(__key);
+    for (; __len >= 2; __data += 2, __len -= 2)
+    {
+        _Size __k = __loadword<_Size>(__data);
+        __k *= __m;
+        __k ^= __k >> __r;
+        __k *= __m;
+        __h *= __m;
+        __h ^= __k;
+    }
+    if (__len) {
+      __h ^= __data[0];
+      __h *= __m;
+    }
+    __h ^= __h >> 13;
+    __h *= __m;
+    __h ^= __h >> 15;
+    return __h;
+}
+#endif
+
 template <class _Size>
 struct __murmur2_or_cityhash<_Size, 32>
 {

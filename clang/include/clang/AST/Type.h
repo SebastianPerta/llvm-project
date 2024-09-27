@@ -516,7 +516,19 @@ public:
            // to implicitly cast into the default address space.
            (A == LangAS::Default &&
             (B == LangAS::cuda_constant || B == LangAS::cuda_device ||
-             B == LangAS::cuda_shared));
+             B == LangAS::cuda_shared)) ||
+           // On Renesas RL78 the Default address space can be:
+           // __near in which case __far is a superset of Default.
+           // __far in which case Default is a superset of __near.
+           //(A == LangAS::__far && B == LangAS::Default) ||
+           (A == LangAS::__near && B == LangAS::Default) ||
+           (A == LangAS::Default && B == LangAS::__near) ||
+           (A == LangAS::__far_data && B == LangAS::__near) ||
+           (A == LangAS::__far_data && B == LangAS::Default) || 
+           (A == LangAS::__far_code && B == LangAS::__near) ||
+           (A == LangAS::__far_code && B == LangAS::Default) || 
+           (A == LangAS::__far_code && B == LangAS::__far_data) ||
+           (A == LangAS::__far_data && B == LangAS::__far_code);
   }
 
   /// Returns true if the address space in these qualifiers is equal to or
@@ -762,6 +774,14 @@ public:
 
   unsigned getLocalFastQualifiers() const { return Value.getInt(); }
   void setLocalFastQualifiers(unsigned Quals) { Value.setInt(Quals); }
+
+// TODO: find different implementation.
+private:
+  unsigned int mask;
+
+public:
+  unsigned getTypeSpecSign() const { return mask & 0x3; }
+  void setTypeSpecSign(unsigned sign) { mask = sign & 0x3; }
 
   bool UseExcessPrecision(const ASTContext &Ctx);
 
@@ -1673,7 +1693,7 @@ protected:
 
     /// Extra information which affects how the function is called, like
     /// regparm and the calling convention.
-    unsigned ExtInfo : 13;
+    unsigned ExtInfo : 15;
 
     /// The ref-qualifier associated with a \c FunctionProtoType.
     ///
@@ -1962,7 +1982,10 @@ protected:
   Type(TypeClass tc, QualType canon, TypeDependence Dependence)
       : ExtQualsTypeCommonBase(this,
                                canon.isNull() ? QualType(this_(), 0) : canon) {
-    static_assert(sizeof(*this) <= 8 + sizeof(ExtQualsTypeCommonBase),
+    // TODO: for now lets increase all types to accomodate the far/nondefault AS bit flags.
+    // In the future, we could do what was done with ConstantMatrixTypeBitfields:
+    // https://github.com/llvm/llvm-project/commit/94b43118e2203fed8ca0377ae762c08189aa6f3d
+    static_assert(sizeof(*this) <= 16 + sizeof(ExtQualsTypeCommonBase),
                   "changing bitfields changed sizeof(Type)!");
     static_assert(alignof(decltype(*this)) % sizeof(void *) == 0,
                   "Insufficient alignment!");
@@ -3844,8 +3867,8 @@ public:
     // adjust the Bits field below, and if you add bits, you'll need to adjust
     // Type::FunctionTypeBitfields::ExtInfo as well.
 
-    // |  CC  |noreturn|produces|nocallersavedregs|regparm|nocfcheck|cmsenscall|
-    // |0 .. 4|   5    |    6   |       7         |8 .. 10|    11   |    12    |
+    // |  CC  |noreturn|produces|nocallersavedregs|regparm|nocfcheck|cmsenscall|far|nondefaultas|
+    // |0 .. 4|   5    |    6   |       7         |8 .. 10|    11   |    12    |13 |   14       |
     //
     // regparm is either 0 (no regparm attribute) or the regparm value+1.
     enum { CallConvMask = 0x1F };
@@ -3858,6 +3881,9 @@ public:
     };
     enum { NoCfCheckMask = 0x800 };
     enum { CmseNSCallMask = 0x1000 };
+    //TODO: RL78 double check that the field is properly handled everywhere
+    enum { FarMask = 0x2000 }; 
+    enum { NonDefaultASMask = 0x4000 };
     uint16_t Bits = CC_C;
 
     ExtInfo(unsigned Bits) : Bits(static_cast<uint16_t>(Bits)) {}
@@ -3867,14 +3893,16 @@ public:
     // have all the elements (when reading an AST file for example).
     ExtInfo(bool noReturn, bool hasRegParm, unsigned regParm, CallingConv cc,
             bool producesResult, bool noCallerSavedRegs, bool NoCfCheck,
-            bool cmseNSCall) {
+            bool cmseNSCall, bool Far, bool NonDefaultAS) {
       assert((!hasRegParm || regParm < 7) && "Invalid regparm value");
       Bits = ((unsigned)cc) | (noReturn ? NoReturnMask : 0) |
              (producesResult ? ProducesResultMask : 0) |
              (noCallerSavedRegs ? NoCallerSavedRegsMask : 0) |
              (hasRegParm ? ((regParm + 1) << RegParmOffset) : 0) |
              (NoCfCheck ? NoCfCheckMask : 0) |
-             (cmseNSCall ? CmseNSCallMask : 0);
+             (cmseNSCall ? CmseNSCallMask : 0) |
+             (Far ? FarMask : 0) | 
+             (NonDefaultAS ? NonDefaultASMask : 0);
     }
 
     // Constructor with all defaults. Use when for example creating a
@@ -3890,6 +3918,8 @@ public:
     bool getCmseNSCall() const { return Bits & CmseNSCallMask; }
     bool getNoCallerSavedRegs() const { return Bits & NoCallerSavedRegsMask; }
     bool getNoCfCheck() const { return Bits & NoCfCheckMask; }
+    bool getFar() const { return Bits & FarMask; }
+    bool getNonDefaultAS() const { return Bits & NonDefaultASMask; }
     bool getHasRegParm() const { return ((Bits & RegParmMask) >> RegParmOffset) != 0; }
 
     unsigned getRegParm() const {
@@ -3944,6 +3974,20 @@ public:
         return ExtInfo(Bits | NoCfCheckMask);
       else
         return ExtInfo(Bits & ~NoCfCheckMask);
+    }
+
+    ExtInfo withFar(bool Far) const {
+      if (Far)
+        return ExtInfo(Bits | FarMask);
+      else
+        return ExtInfo(Bits & ~FarMask);
+    }
+
+    ExtInfo withNonDefaultAS(bool DefaultAS) const {
+      if (DefaultAS)
+        return ExtInfo(Bits | NonDefaultASMask);
+      else
+        return ExtInfo(Bits & ~NonDefaultASMask);
     }
 
     ExtInfo withRegParm(unsigned RegParm) const {
@@ -4002,6 +4046,8 @@ public:
   bool getNoReturnAttr() const { return getExtInfo().getNoReturn(); }
 
   bool getCmseNSCallAttr() const { return getExtInfo().getCmseNSCall(); }
+  bool getFar() const { return getExtInfo().getFar(); }
+  bool getNonDefaultAS() const { return getExtInfo().getNonDefaultAS(); }
   CallingConv getCallConv() const { return getExtInfo().getCC(); }
   ExtInfo getExtInfo() const { return ExtInfo(FunctionTypeBits.ExtInfo); }
 
@@ -7562,6 +7608,9 @@ QualType DecayedType::getPointeeType() const {
 void FixedPointValueToString(SmallVectorImpl<char> &Str, llvm::APSInt Val,
                              unsigned Scale);
 
+/// A simple wrapper over QualType::getAddressSpace() to accommodate the RL78
+/// far code AS.
+LangAS getAddressSpace(QualType Type, const ASTContext &Ctx);
 } // namespace clang
 
 #endif // LLVM_CLANG_AST_TYPE_H

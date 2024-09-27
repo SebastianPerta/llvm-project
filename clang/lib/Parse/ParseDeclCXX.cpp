@@ -1497,6 +1497,10 @@ bool Parser::isValidAfterTypeSpecifier(bool CouldBeBitfield) {
   case tok::greater:
     // template<class T = class X>
     return getLangOpts().CPlusPlus;
+  case tok::kw___far:
+  case tok::kw___near:
+     if (!isKnownToBeTypeSpecifier(NextToken()) && getLangOpts().RenesasRL78)
+      return true;
   }
   return false;
 }

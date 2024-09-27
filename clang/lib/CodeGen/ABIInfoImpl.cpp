@@ -170,7 +170,9 @@ CodeGen::emitVoidPtrDirectVAArg(CodeGenFunction &CGF, Address VAListAddr,
   // Cast the element type to i8* if necessary.  Some platforms define
   // va_list as a struct containing an i8* instead of just an i8*.
   if (VAListAddr.getElementType() != CGF.Int8PtrTy)
-    VAListAddr = VAListAddr.withElementType(CGF.Int8PtrTy);
+    VAListAddr = VAListAddr.withElementType(
+        CGF.getLangOpts().RenesasRL78DataModel ? CGF.AllocaInt8PtrTy
+                                               : CGF.Int8PtrTy);
 
   llvm::Value *Ptr = CGF.Builder.CreateLoad(VAListAddr, "argp.cur");
 

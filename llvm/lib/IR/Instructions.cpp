@@ -3367,13 +3367,25 @@ unsigned CastInst::isEliminableCastPair(
     case 12:
       // addrspacecast, addrspacecast -> bitcast,       if SrcAS == DstAS
       // addrspacecast, addrspacecast -> addrspacecast, if SrcAS != DstAS
+      // For RL78 we must completely disable this, due to different prefixing when casting
+      // from near to far code or far data and then casting to the other far type.
+      // TODO: make it rl78 specific
       if (SrcTy->getPointerAddressSpace() != DstTy->getPointerAddressSpace())
-        return Instruction::AddrSpaceCast;
+        return 0; 
+        //return Instruction::AddrSpaceCast;
       return Instruction::BitCast;
     case 13:
       // FIXME: this state can be merged with (1), but the following assert
       // is useful to check the correcteness of the sequence due to semantic
       // change of bitcast.
+      // For RL78 bitcast (addrspacecast data_pointer) to function pointer and
+      //          bitcast (addrspacecast function_pointer) to data pointer
+      // can't be merged. See InstCombiner::visitAddrSpaceCast.
+      // TODO: make it rl78 specific
+      if (SrcTy->isPointerTy() && DstTy->isPointerTy() &&
+          MidTy->getPointerAddressSpace() !=
+              DstTy->getPointerAddressSpace())
+        return 0;
       assert(
         SrcTy->isPtrOrPtrVectorTy() &&
         MidTy->isPtrOrPtrVectorTy() &&

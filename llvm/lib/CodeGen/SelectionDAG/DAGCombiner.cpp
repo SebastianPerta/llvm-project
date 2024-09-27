@@ -2901,7 +2901,8 @@ SDValue DAGCombiner::visitADDLike(SDNode *N) {
 
   // (x - y) + -1  ->  add (xor y, -1), x
   if (N0.getOpcode() == ISD::SUB && N0.hasOneUse() &&
-      isAllOnesOrAllOnesSplat(N1)) {
+      isAllOnesOrAllOnesSplat(N1) &&
+      TLI.isOperationLegal(ISD::XOR, VT)) {
     SDValue Xor = DAG.getNode(ISD::XOR, DL, VT, N0.getOperand(1), N1);
     return DAG.getNode(ISD::ADD, DL, VT, Xor, N0.getOperand(0));
   }
@@ -3813,7 +3814,7 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
   }
 
   // Canonicalize (sub -1, x) -> ~x, i.e. (xor x, -1)
-  if (isAllOnesOrAllOnesSplat(N0))
+  if (isAllOnesOrAllOnesSplat(N0) && TLI.isOperationLegal(ISD::XOR, VT))
     return DAG.getNode(ISD::XOR, DL, VT, N1, N0);
 
   // fold (A - (0-B)) -> A+B
@@ -3893,6 +3894,7 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
     if (A != N0)
       std::swap(A, B);
     if (A == N0 &&
+        TLI.isOperationLegal(ISD::XOR, VT) &&
         (N1.hasOneUse() || isConstantOrConstantVector(B, /*NoOpaques=*/true))) {
       SDValue InvB =
           DAG.getNode(ISD::XOR, DL, VT, B, DAG.getAllOnesConstant(DL, VT));
@@ -3937,7 +3939,8 @@ SDValue DAGCombiner::visitSUB(SDNode *N) {
     return V;
 
   // (x - y) - 1  ->  add (xor y, -1), x
-  if (N0.getOpcode() == ISD::SUB && N0.hasOneUse() && isOneOrOneSplat(N1)) {
+  if (N0.getOpcode() == ISD::SUB && N0.hasOneUse() && isOneOrOneSplat(N1) &&
+      TLI.isOperationLegal(ISD::XOR, VT)) {
     SDValue Xor = DAG.getNode(ISD::XOR, DL, VT, N0.getOperand(1),
                               DAG.getAllOnesConstant(DL, VT));
     return DAG.getNode(ISD::ADD, DL, VT, Xor, N0.getOperand(0));
@@ -20516,6 +20519,10 @@ SDValue DAGCombiner::replaceStoreOfInsertLoad(StoreSDNode *ST) {
     return SDValue();
   EVT PtrVT = Ptr.getValueType();
 
+  // RL78: this happens when the ptr is 32-bit and the index 16-bit
+  if (Idx.getValueType().getSizeInBits() < PtrVT.getSizeInBits())
+    Idx = DAG.getNode(ISD::ZERO_EXTEND, DL, PtrVT, Idx);
+
   SDValue Offset =
       DAG.getNode(ISD::MUL, DL, PtrVT, Idx,
                   DAG.getConstant(EltVT.getSizeInBits() / 8, DL, PtrVT));
@@ -26349,7 +26356,11 @@ bool DAGCombiner::SimplifySelectOps(SDNode *TheSelect, SDValue LHS,
         LLD->getBasePtr().getOpcode() == ISD::TargetFrameIndex ||
         RLD->getBasePtr().getOpcode() == ISD::TargetFrameIndex ||
         !TLI.isOperationLegalOrCustom(TheSelect->getOpcode(),
-                                      LLD->getBasePtr().getValueType()))
+                                      LLD->getBasePtr().getValueType()) ||
+        // FIXME: RL78 far pointers are not handled properly in the target
+        // lowering code currently so prevent this optimization here
+        (DAG.getTarget().getTargetTriple().isRL78() &&
+         DAG.getDataLayout().getPointerSizeInBits() == 32))
       return false;
 
     // The loads must not depend on one another.

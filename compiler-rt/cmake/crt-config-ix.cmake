@@ -30,11 +30,12 @@ set(PPC32 powerpc powerpcspe)
 set(PPC64 powerpc64 powerpc64le)
 set(RISCV32 riscv32)
 set(RISCV64 riscv64)
+set(RL78 rl78)
 set(VE ve)
 
 set(ALL_CRT_SUPPORTED_ARCH ${X86} ${X86_64} ${ARM32} ${ARM64} ${PPC32}
     ${PPC64} ${RISCV32} ${RISCV64} ${VE} ${HEXAGON} ${LOONGARCH64}
-    ${MIPS32} ${MIPS64} ${SPARC} ${SPARCV9})
+    ${MIPS32} ${MIPS64} ${SPARC} ${SPARCV9} ${RL78})
 
 include(CompilerRTUtils)
 
@@ -47,7 +48,8 @@ if(NOT APPLE)
   message(STATUS "Supported architectures for crt: ${CRT_SUPPORTED_ARCH}")
 endif()
 
-if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND NOT LLVM_USE_SANITIZER)
+if (CRT_SUPPORTED_ARCH AND OS_NAME MATCHES "Linux" AND NOT LLVM_USE_SANITIZER OR
+    "${arch}" MATCHES "rl78")
   set(COMPILER_RT_HAS_CRT TRUE)
 else()
   set(COMPILER_RT_HAS_CRT FALSE)

@@ -452,6 +452,10 @@ defm toc_optimize : BB<"toc-optimize",
     "(PowerPC64) Enable TOC related optimizations (default)",
     "(PowerPC64) Disable TOC related optimizations">;
 
+defm stride_dsp_memory_area : B<"stride-dsp-memory-area",
+    "(RL78) Enable Stride DSP Memory Area",
+    "(RL78) Disable Stride DSP Memory Area (default)">;
+
 defm pcrel_optimize : BB<"pcrel-optimize",
     "(PowerPC64) Enable PC-relative optimizations (default)",
     "(PowerPC64) Disable PC-relative optimizations">;
@@ -768,3 +772,6 @@ defm android_memtag_heap: BB<"android-memtag-heap",
     "Instruct the dynamic loader to enable MTE protection for the heap", "">;
 defm android_memtag_mode: EEq<"android-memtag-mode",
     "Instruct the dynamic loader to start under MTE mode {async, sync, none}">;
+
+// RL78 option used to disable plt usage
+def mfar_code: F<"mfar-code">, HelpText<"Use far code model, disables PLT usage.">;

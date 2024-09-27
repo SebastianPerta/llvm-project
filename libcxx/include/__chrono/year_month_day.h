@@ -69,41 +69,50 @@ public:
      _LIBCPP_HIDE_FROM_ABI constexpr days __to_days() const noexcept;
 };
 
-
+#ifdef __RL78__
+#define __rl78_long long
+#else
+#define __rl78_long 
+#endif
 // https://howardhinnant.github.io/date_algorithms.html#civil_from_days
 _LIBCPP_HIDE_FROM_ABI inline constexpr
 year_month_day year_month_day::__from_days(days __d) noexcept
 {
-    static_assert(numeric_limits<unsigned>::digits >= 18, "");
-    static_assert(numeric_limits<int>::digits >= 20     , "");
-    const int      __z = __d.count() + 719468;
-    const int      __era = (__z >= 0 ? __z : __z - 146096) / 146097;
-    const unsigned __doe = static_cast<unsigned>(__z - __era * 146097);              // [0, 146096]
-    const unsigned __yoe = (__doe - __doe/1460 + __doe/36524 - __doe/146096) / 365;  // [0, 399]
-    const int      __yr = static_cast<int>(__yoe) + __era * 400;
-    const unsigned __doy = __doe - (365 * __yoe + __yoe/4 - __yoe/100);              // [0, 365]
-    const unsigned __mp = (5 * __doy + 2)/153;                                       // [0, 11]
-    const unsigned __dy = __doy - (153 * __mp + 2)/5 + 1;                            // [1, 31]
-    const unsigned __mth = __mp + (__mp < 10 ? 3 : -9);                              // [1, 12]
+    static_assert(numeric_limits<unsigned __rl78_long>::digits >= 18, "");
+    static_assert(numeric_limits<__rl78_long int>::digits >= 20     , "");
+    const __rl78_long int      __z = __d.count() + 719468;
+    const __rl78_long int      __era = (__z >= 0 ? __z : __z - 146096) / 146097;
+    const unsigned __rl78_long __doe = static_cast<unsigned __rl78_long>(__z - __era * 146097);              // [0, 146096]
+    const unsigned __rl78_long __yoe = (__doe - __doe/1460 + __doe/36524 - __doe/146096) / 365;  // [0, 399]
+    const __rl78_long int      __yr = static_cast<__rl78_long int>(__yoe) + __era * 400;
+    const unsigned __rl78_long __doy = __doe - (365 * __yoe + __yoe/4 - __yoe/100);              // [0, 365]
+    const unsigned __rl78_long __mp = (5 * __doy + 2)/153;                                       // [0, 11]
+    const unsigned __rl78_long __dy = __doy - (153 * __mp + 2)/5 + 1;                            // [1, 31]
+    const unsigned __rl78_long __mth = __mp + (__mp < 10 ? 3 : -9);                              // [1, 12]
+#ifdef __RL78__
+    return year_month_day{chrono::year{static_cast<int>(__yr + (__mth <= 2))}, chrono::month{static_cast<unsigned int>(__mth)}, chrono::day{static_cast<unsigned int>(__dy)}};
+#else
     return year_month_day{chrono::year{__yr + (__mth <= 2)}, chrono::month{__mth}, chrono::day{__dy}};
+#endif
+    
 }
 
 // https://howardhinnant.github.io/date_algorithms.html#days_from_civil
 _LIBCPP_HIDE_FROM_ABI inline constexpr
 days year_month_day::__to_days() const noexcept
 {
-    static_assert(numeric_limits<unsigned>::digits >= 18, "");
-    static_assert(numeric_limits<int>::digits >= 20     , "");
+    static_assert(numeric_limits<unsigned __rl78_long>::digits >= 18, "");
+    static_assert(numeric_limits<__rl78_long int>::digits >= 20     , "");
 
-    const int      __yr  = static_cast<int>(__y_) - (__m_ <= February);
-    const unsigned __mth = static_cast<unsigned>(__m_);
-    const unsigned __dy  = static_cast<unsigned>(__d_);
+    const __rl78_long int      __yr  = static_cast<int>(__y_) - (__m_ <= February);
+    const unsigned __rl78_long __mth = static_cast<unsigned>(__m_);
+    const unsigned __rl78_long __dy  = static_cast<unsigned>(__d_);
 
-    const int      __era = (__yr >= 0 ? __yr : __yr - 399) / 400;
-    const unsigned __yoe = static_cast<unsigned>(__yr - __era * 400);                // [0, 399]
-    const unsigned __doy = (153 * (__mth + (__mth > 2 ? -3 : 9)) + 2) / 5 + __dy-1;  // [0, 365]
-    const unsigned __doe = __yoe * 365 + __yoe/4 - __yoe/100 + __doy;                // [0, 146096]
-    return days{__era * 146097 + static_cast<int>(__doe) - 719468};
+    const __rl78_long int      __era = (__yr >= 0 ? __yr : __yr - 399) / 400;
+    const unsigned __rl78_long __yoe = static_cast<unsigned __rl78_long>(__yr - __era * 400);                // [0, 399]
+    const unsigned __rl78_long __doy = (153 * (__mth + (__mth > 2 ? -3 : 9)) + 2) / 5 + __dy-1;  // [0, 365]
+    const unsigned __rl78_long __doe = __yoe * 365 + __yoe/4 - __yoe/100 + __doy;                // [0, 146096]
+    return days{__era * 146097 + static_cast<__rl78_long int>(__doe) - 719468};
 }
 
 _LIBCPP_HIDE_FROM_ABI inline constexpr

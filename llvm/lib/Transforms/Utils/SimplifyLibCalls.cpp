@@ -381,9 +381,13 @@ Value *LibCallSimplifier::emitStrLenMemCpy(Value *Src, Value *Dst, uint64_t Len,
 
   // We have enough information to now generate the memcpy call to do the
   // concatenation for us.  Make a memcpy to copy the nul byte with align = 1.
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+  // they're different
+  Type *SizeTTy = IntegerType::get(
+      B.getContext(), TLI->getSizeTSize(*B.GetInsertBlock()->getModule()));
   B.CreateMemCpy(
-      CpyDst, Align(1), Src, Align(1),
-      ConstantInt::get(DL.getIntPtrType(Src->getContext()), Len + 1));
+      CpyDst, Align(1), Src, Align(1), ConstantInt::get(SizeTTy, Len + 1));
   return Dst;
 }
 
@@ -571,11 +575,16 @@ Value *LibCallSimplifier::optimizeStrCmp(CallInst *CI, IRBuilderBase &B) {
   if (Len2)
     annotateDereferenceableBytes(CI, 1, Len2);
 
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+  // they're different
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
+
   if (Len1 && Len2) {
     return copyFlags(
         *CI, emitMemCmp(Str1P, Str2P,
-                        ConstantInt::get(DL.getIntPtrType(CI->getContext()),
-                                         std::min(Len1, Len2)),
+                        ConstantInt::get(SizeTTy, std::min(Len1, Len2)),
                         B, DL, TLI));
   }
 
@@ -585,14 +594,13 @@ Value *LibCallSimplifier::optimizeStrCmp(CallInst *CI, IRBuilderBase &B) {
       return copyFlags(
           *CI,
           emitMemCmp(Str1P, Str2P,
-                     ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len2),
-                     B, DL, TLI));
+                     ConstantInt::get(SizeTTy, Len2), B, DL, TLI));
   } else if (HasStr1 && !HasStr2) {
     if (canTransformToMemCmp(CI, Str2P, Len1, DL))
       return copyFlags(
           *CI,
           emitMemCmp(Str1P, Str2P,
-                     ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len1),
+                     ConstantInt::get(SizeTTy, Len1),
                      B, DL, TLI));
   }
 
@@ -656,6 +664,12 @@ Value *LibCallSimplifier::optimizeStrNCmp(CallInst *CI, IRBuilderBase &B) {
   if (Len2)
     annotateDereferenceableBytes(CI, 1, Len2);
 
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+  // they're different
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
+
   // strncmp to memcmp
   if (!HasStr1 && HasStr2) {
     Len2 = std::min(Len2, Length);
@@ -663,7 +677,7 @@ Value *LibCallSimplifier::optimizeStrNCmp(CallInst *CI, IRBuilderBase &B) {
       return copyFlags(
           *CI,
           emitMemCmp(Str1P, Str2P,
-                     ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len2),
+                     ConstantInt::get(SizeTTy, Len2),
                      B, DL, TLI));
   } else if (HasStr1 && !HasStr2) {
     Len1 = std::min(Len1, Length);
@@ -671,7 +685,7 @@ Value *LibCallSimplifier::optimizeStrNCmp(CallInst *CI, IRBuilderBase &B) {
       return copyFlags(
           *CI,
           emitMemCmp(Str1P, Str2P,
-                     ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len1),
+                     ConstantInt::get(SizeTTy, Len1),
                      B, DL, TLI));
   }
 
@@ -704,11 +718,17 @@ Value *LibCallSimplifier::optimizeStrCpy(CallInst *CI, IRBuilderBase &B) {
   else
     return nullptr;
 
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+  // they're different
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
+
   // We have enough information to now generate the memcpy call to do the
   // copy for us.  Make a memcpy to copy the nul byte with align = 1.
   CallInst *NewCI =
       B.CreateMemCpy(Dst, Align(1), Src, Align(1),
-                     ConstantInt::get(DL.getIntPtrType(CI->getContext()), Len));
+                     ConstantInt::get(SizeTTy, Len));
   mergeAttributesAndFlags(NewCI, *CI);
   return Dst;
 }
@@ -733,8 +753,14 @@ Value *LibCallSimplifier::optimizeStpCpy(CallInst *CI, IRBuilderBase &B) {
   else
     return nullptr;
 
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(PT), as for RL78 -mfar-data they're different
+  // (except for AS1)
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
+
   Type *PT = Callee->getFunctionType()->getParamType(0);
-  Value *LenV = ConstantInt::get(DL.getIntPtrType(PT), Len);
+  Value *LenV = ConstantInt::get(SizeTTy, Len);
   Value *DstEnd = B.CreateInBoundsGEP(
       B.getInt8Ty(), Dst, ConstantInt::get(DL.getIntPtrType(PT), Len - 1));
 
@@ -803,13 +829,18 @@ Value *LibCallSimplifier::optimizeStrLCpy(CallInst *CI, IRBuilderBase &B) {
     return ConstantInt::get(CI->getType(), 0);
   }
 
-  Function *Callee = CI->getCalledFunction();
-  Type *PT = Callee->getFunctionType()->getParamType(0);
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(PT), as for RL78 -mfar-data they're
+  // different (except for AS1)
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
+  //Function *Callee = CI->getCalledFunction();
+  //Type *PT = Callee->getFunctionType()->getParamType(0);
   // Transform strlcpy(D, S, N) to memcpy(D, S, N') where N' is the lower
   // bound on strlen(S) + 1 and N, optionally followed by a nul store to
   // D[N' - 1] if necessary.
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
-                        ConstantInt::get(DL.getIntPtrType(PT), NBytes));
+                        ConstantInt::get(SizeTTy, NBytes));
   mergeAttributesAndFlags(NewCI, *CI);
 
   if (!NulTerm) {
@@ -828,7 +859,7 @@ Value *LibCallSimplifier::optimizeStrLCpy(CallInst *CI, IRBuilderBase &B) {
 // otherwise.
 Value *LibCallSimplifier::optimizeStringNCpy(CallInst *CI, bool RetEnd,
                                              IRBuilderBase &B) {
-  Function *Callee = CI->getCalledFunction();
+  //Function *Callee = CI->getCalledFunction();
   Value *Dst = CI->getArgOperand(0);
   Value *Src = CI->getArgOperand(1);
   Value *Size = CI->getArgOperand(2);
@@ -904,11 +935,16 @@ Value *LibCallSimplifier::optimizeStringNCpy(CallInst *CI, bool RetEnd,
     Src = B.CreateGlobalString(SrcStr, "str");
   }
 
-  Type *PT = Callee->getFunctionType()->getParamType(0);
+  // RL78 note: use size_t as the type of the size parameter of memcmp()
+  // i.e. instead of DL.getIntPtrType(PT), as for RL78 -mfar-data they're
+  // different (except for AS1)
+  //Type *PT = Callee->getFunctionType()->getParamType(0);
   // st{p,r}ncpy(D, S, N) -> memcpy(align 1 D, align 1 S, N) when both
   // S and N are constant.
+  Type *SizeTTy =
+      IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
   CallInst *NewCI = B.CreateMemCpy(Dst, Align(1), Src, Align(1),
-                                   ConstantInt::get(DL.getIntPtrType(PT), N));
+                                   ConstantInt::get(SizeTTy, N));
   mergeAttributesAndFlags(NewCI, *CI);
   if (!RetEnd)
     return Dst;
@@ -3060,9 +3096,14 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
       return nullptr; // we found a format specifier, bail out.
 
     // sprintf(str, fmt) -> llvm.memcpy(align 1 str, align 1 fmt, strlen(fmt)+1)
+    // RL78 note: use size_t as the type of the size parameter of memcmp()
+    // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+    // they're different
+    Type *SizeTTy =
+        IntegerType::get(CI->getContext(), TLI->getSizeTSize(*CI->getModule()));
     B.CreateMemCpy(
         Dest, Align(1), CI->getArgOperand(1), Align(1),
-        ConstantInt::get(DL.getIntPtrType(CI->getContext()),
+        ConstantInt::get(SizeTTy,
                          FormatStr.size() + 1)); // Copy the null byte.
     return ConstantInt::get(CI->getType(), FormatStr.size());
   }
@@ -3098,9 +3139,14 @@ Value *LibCallSimplifier::optimizeSPrintFString(CallInst *CI,
 
     uint64_t SrcLen = GetStringLength(CI->getArgOperand(2));
     if (SrcLen) {
+      // RL78 note: use size_t as the type of the size parameter of memcmp()
+      // i.e. instead of DL.getIntPtrType(CI->getContext()), as for RL78 -mfar-data
+      // they're different
+      Type *SizeTTy = IntegerType::get(CI->getContext(),
+                                       TLI->getSizeTSize(*CI->getModule()));
       B.CreateMemCpy(
           Dest, Align(1), CI->getArgOperand(2), Align(1),
-          ConstantInt::get(DL.getIntPtrType(CI->getContext()), SrcLen));
+          ConstantInt::get(SizeTTy, SrcLen));
       // Returns total number of characters written without null-character.
       return ConstantInt::get(CI->getType(), SrcLen - 1);
     } else if (Value *V = emitStpCpy(Dest, CI->getArgOperand(2), B, TLI)) {

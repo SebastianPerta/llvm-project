@@ -84,6 +84,9 @@ class MemCmpExpansion {
   const DataLayout &DL;
   DomTreeUpdater *DTU = nullptr;
   IRBuilder<> Builder;
+  // This class assumed that the integer size (e.g. the return value of memcmp) is 32 bits;
+  // RL78 needs to change this in the constructor to 16, as that's the native integer size
+  unsigned IntBits = 32;
   // Represents the decomposition in blocks of the expansion. For example,
   // comparing 33 bytes on X86+sse can be done with 2x16-byte loads and
   // 1x1-byte load, which would be represented as [{16, 0}, {16, 16}, {1, 32}.
@@ -227,6 +230,9 @@ MemCmpExpansion::MemCmpExpansion(
       IsUsedForZeroCmp(IsUsedForZeroCmp), DL(TheDataLayout), DTU(DTU),
       Builder(CI) {
   assert(Size > 0 && "zero blocks");
+  // RL78 uses a 16-bit integer; FIXME: is there a better way to figure out the target here?
+  if (!CI->getParent()->getParent()->getParent()->getTargetTriple().compare(0, 4, "rl78"))
+    IntBits = 16;
   // Scale the max size down if the target can load more bytes than we need.
   llvm::ArrayRef<unsigned> LoadSizes(Options.LoadSizes);
   while (!LoadSizes.empty() && LoadSizes.front() > Size) {
@@ -333,7 +339,7 @@ void MemCmpExpansion::emitLoadCompareByteBlock(unsigned BlockIndex,
   Builder.SetInsertPoint(BB);
   const LoadPair Loads =
       getLoadPair(Type::getInt8Ty(CI->getContext()), /*NeedsBSwap=*/false,
-                  Type::getInt32Ty(CI->getContext()), OffsetBytes);
+                  Type::getIntNTy(CI->getContext(), IntBits), OffsetBytes);
   Value *Diff = Builder.CreateSub(Loads.Lhs, Loads.Rhs);
 
   PhiRes->addIncoming(Diff, BB);
@@ -450,7 +456,7 @@ void MemCmpExpansion::emitLoadCompareBlockMultipleLoads(unsigned BlockIndex,
   // since early exit to ResultBlock was not taken (no difference was found in
   // any of the bytes).
   if (BlockIndex == LoadCmpBlocks.size() - 1) {
-    Value *Zero = ConstantInt::get(Type::getInt32Ty(CI->getContext()), 0);
+    Value *Zero = ConstantInt::get(Type::getIntNTy(CI->getContext(), IntBits), 0);
     PhiRes->addIncoming(Zero, LoadCmpBlocks[BlockIndex]);
   }
 }
@@ -508,7 +514,7 @@ void MemCmpExpansion::emitLoadCompareBlock(unsigned BlockIndex) {
   // since early exit to ResultBlock was not taken (no difference was found in
   // any of the bytes).
   if (BlockIndex == LoadCmpBlocks.size() - 1) {
-    Value *Zero = ConstantInt::get(Type::getInt32Ty(CI->getContext()), 0);
+    Value *Zero = ConstantInt::get(Type::getIntNTy(CI->getContext(), IntBits), 0);
     PhiRes->addIncoming(Zero, LoadCmpBlocks[BlockIndex]);
   }
 }
@@ -522,7 +528,7 @@ void MemCmpExpansion::emitMemCmpResultBlock() {
   if (IsUsedForZeroCmp) {
     BasicBlock::iterator InsertPt = ResBlock.BB->getFirstInsertionPt();
     Builder.SetInsertPoint(ResBlock.BB, InsertPt);
-    Value *Res = ConstantInt::get(Type::getInt32Ty(CI->getContext()), 1);
+    Value *Res = ConstantInt::get(Type::getIntNTy(CI->getContext(), IntBits), 1);
     PhiRes->addIncoming(Res, ResBlock.BB);
     BranchInst *NewBr = BranchInst::Create(EndBlock);
     Builder.Insert(NewBr);
@@ -537,8 +543,8 @@ void MemCmpExpansion::emitMemCmpResultBlock() {
                                   ResBlock.PhiSrc2);
 
   Value *Res =
-      Builder.CreateSelect(Cmp, ConstantInt::get(Builder.getInt32Ty(), -1),
-                           ConstantInt::get(Builder.getInt32Ty(), 1));
+      Builder.CreateSelect(Cmp, ConstantInt::get(Builder.getIntNTy(IntBits), -1),
+                           ConstantInt::get(Builder.getIntNTy(IntBits), 1));
 
   PhiRes->addIncoming(Res, ResBlock.BB);
   BranchInst *NewBr = BranchInst::Create(EndBlock);
@@ -559,7 +565,7 @@ void MemCmpExpansion::setupResultBlockPHINodes() {
 
 void MemCmpExpansion::setupEndBlockPHINodes() {
   Builder.SetInsertPoint(&EndBlock->front());
-  PhiRes = Builder.CreatePHI(Type::getInt32Ty(CI->getContext()), 2, "phi.res");
+  PhiRes = Builder.CreatePHI(Type::getIntNTy(CI->getContext(), IntBits), 2, "phi.res");
 }
 
 Value *MemCmpExpansion::getMemCmpExpansionZeroCase() {
@@ -581,7 +587,7 @@ Value *MemCmpExpansion::getMemCmpEqZeroOneBlock() {
   unsigned LoadIndex = 0;
   Value *Cmp = getCompareLoadPairs(0, LoadIndex);
   assert(LoadIndex == getNumLoads() && "some entries were not consumed");
-  return Builder.CreateZExt(Cmp, Type::getInt32Ty(CI->getContext()));
+  return Builder.CreateZExt(Cmp, Type::getIntNTy(CI->getContext(), IntBits));
 }
 
 /// A memcmp expansion that only has one block of load and compare can bypass
@@ -594,7 +600,7 @@ Value *MemCmpExpansion::getMemCmpOneBlock() {
   // subtract them to get the suitable negative, zero, or positive i32 result.
   if (Size < 4) {
     const LoadPair Loads =
-        getLoadPair(LoadSizeType, NeedsBSwap, Builder.getInt32Ty(),
+        getLoadPair(LoadSizeType, NeedsBSwap, Builder.getIntNTy(IntBits),
                     /*Offset*/ 0);
     return Builder.CreateSub(Loads.Lhs, Loads.Rhs);
   }
@@ -609,8 +615,8 @@ Value *MemCmpExpansion::getMemCmpOneBlock() {
   // branches before we got there.
   Value *CmpUGT = Builder.CreateICmpUGT(Loads.Lhs, Loads.Rhs);
   Value *CmpULT = Builder.CreateICmpULT(Loads.Lhs, Loads.Rhs);
-  Value *ZextUGT = Builder.CreateZExt(CmpUGT, Builder.getInt32Ty());
-  Value *ZextULT = Builder.CreateZExt(CmpULT, Builder.getInt32Ty());
+  Value *ZextUGT = Builder.CreateZExt(CmpUGT, Builder.getIntNTy(IntBits));
+  Value *ZextULT = Builder.CreateZExt(CmpULT, Builder.getIntNTy(IntBits));
   return Builder.CreateSub(ZextUGT, ZextULT);
 }
 

@@ -446,6 +446,7 @@ set(LLVM_ALL_TARGETS
   WebAssembly
   X86
   XCore
+  RL78
   )
 
 set(LLVM_ALL_EXPERIMENTAL_TARGETS
@@ -525,6 +526,8 @@ set(LLVM_ENABLE_HTTPLIB "OFF" CACHE STRING "Use cpp-httplib HTTP server library 
 
 set(LLVM_Z3_INSTALL_DIR "" CACHE STRING "Install directory of the Z3 solver.")
 
+set(LLVM_ENABLE_ICONV "ON" CACHE STRING "Use iconv for character set conversion if available. Can be ON, OFF, or FORCE_ON")
+
 option(LLVM_ENABLE_Z3_SOLVER
   "Enable Support for the Z3 constraint solver in LLVM."
   ${LLVM_ENABLE_Z3_SOLVER_DEFAULT}
@@ -561,6 +564,10 @@ set(LLVM_TARGETS_TO_BUILD
    ${LLVM_TARGETS_TO_BUILD}
    ${LLVM_EXPERIMENTAL_TARGETS_TO_BUILD})
 list(REMOVE_DUPLICATES LLVM_TARGETS_TO_BUILD)
+
+if (RL78 IN_LIST LLVM_TARGETS_TO_BUILD)
+    add_compile_definitions(USE_SHF_RENESAS_ABS)
+endif()
 
 option(LLVM_ENABLE_PIC "Build Position-Independent Code" ON)
 option(LLVM_ENABLE_MODULES "Compile with C++ modules enabled." OFF)

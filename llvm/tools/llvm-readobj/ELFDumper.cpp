@@ -1248,7 +1248,7 @@ const EnumEntry<unsigned> ElfMachineType[] = {
   ENUM_ENT(EM_COREA_2ND,     "EM_COREA_2ND"),
   ENUM_ENT(EM_ARC_COMPACT2,  "EM_ARC_COMPACT2"),
   ENUM_ENT(EM_OPEN8,         "EM_OPEN8"),
-  ENUM_ENT(EM_RL78,          "Renesas RL78"),
+  ENUM_ENT(EM_RL78,          "Renesas RL78 family"),
   ENUM_ENT(EM_VIDEOCORE5,    "Broadcom VideoCore V processor"),
   ENUM_ENT(EM_78KOR,         "EM_78KOR"),
   ENUM_ENT(EM_56800EX,       "EM_56800EX"),
@@ -1334,6 +1334,10 @@ const EnumEntry<unsigned> ElfX86_64SectionFlags[] = {
   ENUM_ENT(SHF_X86_64_LARGE, "l")
 };
 
+static const EnumEntry<unsigned> ElfRL78SectionFlags[] = {
+  ENUM_ENT(SHF_RENESAS_ABS, "Y")
+};
+
 static std::vector<EnumEntry<unsigned>>
 getSectionFlagsForTarget(unsigned EOSAbi, unsigned EMachine) {
   std::vector<EnumEntry<unsigned>> Ret(std::begin(ElfSectionFlags),
@@ -1368,6 +1372,10 @@ getSectionFlagsForTarget(unsigned EOSAbi, unsigned EMachine) {
   case EM_XCORE:
     Ret.insert(Ret.end(), std::begin(ElfXCoreSectionFlags),
                std::end(ElfXCoreSectionFlags));
+    break;
+  case EM_RL78:
+    Ret.insert(Ret.end(), std::begin(ElfRL78SectionFlags),
+               std::end(ElfRL78SectionFlags));
     break;
   default:
     break;
@@ -3536,6 +3544,63 @@ void GNUELFDumper<ELFT>::printFileSummary(StringRef FileStr, ObjectFile &Obj,
   }
 }
 
+static SmallVector<EnumEntry<unsigned>,8> extractRL78Flags(unsigned Value)
+{  
+  SmallVector<EnumEntry<unsigned>, 8> SetFlags;
+
+  if(Value & ELF::EF_RL78_FU_EXIST){
+    SetFlags.push_back({"EF_RL78_FU_EXIST",EF_RL78_FU_EXIST});
+  }
+
+  if(Value & ELF::EF_RL78_EI_EXIST){
+    SetFlags.push_back({"EF_RL78_EI_EXIST",EF_RL78_EI_EXIST});
+  }
+
+  if((Value & ELF::EF_RL78_MAA_1) == ELF::EF_RL78_MAA_1){
+    SetFlags.push_back({"EF_RL78_MAA_1",EF_RL78_MAA_1});
+  }
+  else if (Value & ELF::EF_RL78_MAA_0) {
+    SetFlags.push_back({"EF_RL78_MAA_0",EF_RL78_MAA_0});
+  }
+
+  if((Value & ELF::EF_RL78_CPU_16BIT) == ELF::EF_RL78_CPU_16BIT){
+    SetFlags.push_back({"EF_RL78_CPU_16BIT",EF_RL78_CPU_16BIT});
+  }
+  else if (Value & ELF::EF_RL78_CPU_8BIT) {
+    SetFlags.push_back({"EF_RL78_CPU_8BIT",EF_RL78_CPU_8BIT});
+  }
+
+  if((Value & ELF::EF_RL78_DOUBLE_8) == ELF::EF_RL78_DOUBLE_8){
+    SetFlags.push_back({"EF_RL78_DOUBLE_8",EF_RL78_DOUBLE_8});
+  }
+  else if (Value & ELF::EF_RL78_DOUBLE_4) {
+    SetFlags.push_back({"EF_RL78_DOUBLE_4",EF_RL78_DOUBLE_4});
+  }
+
+  if((Value & ELF::EF_RL78_TEXT_FAR) == ELF::EF_RL78_TEXT_FAR){
+    SetFlags.push_back({"EF_RL78_TEXT_FAR",EF_RL78_TEXT_FAR});
+  }
+  else if (Value & ELF::EF_RL78_TEXT_NEAR) {
+    SetFlags.push_back({"EF_RL78_TEXT_NEAR",EF_RL78_TEXT_NEAR});
+  }
+
+  if((Value & ELF::EF_RL78_DATA_FAR) == ELF::EF_RL78_DATA_FAR){
+    SetFlags.push_back({"EF_RL78_DATA_FAR",EF_RL78_DATA_FAR});
+  }
+  else if (Value & ELF::EF_RL78_DATA_NEAR) {
+    SetFlags.push_back({"EF_RL78_DATA_NEAR",EF_RL78_DATA_NEAR});
+  }
+
+  if((Value & ELF::EF_RL78_RODATA_FAR) == ELF::EF_RL78_RODATA_FAR){
+    SetFlags.push_back({"EF_RL78_RODATA_FAR",EF_RL78_RODATA_FAR});
+  }
+  else if (Value & ELF::EF_RL78_RODATA_NEAR) {
+    SetFlags.push_back({"EF_RL78_RODATA_NEAR",EF_RL78_RODATA_NEAR});
+  }
+
+  return SetFlags;
+}
+
 template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   const Elf_Ehdr &e = this->Obj.getHeader();
   OS << "ELF Header:\n";
@@ -3599,6 +3664,10 @@ template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   else if (e.e_machine == EM_XTENSA)
     ElfFlags = printFlags(e.e_flags, ArrayRef(ElfHeaderXtensaFlags),
                           unsigned(ELF::EF_XTENSA_MACH));
+  else if (e.e_machine == EM_RL78) {
+    SmallVector<EnumEntry<unsigned>,8> setFlags = extractRL78Flags(e.e_flags);
+    ElfFlags = printFlags(e.e_flags, makeArrayRef(setFlags));
+  }
   Str = "0x" + utohexstr(e.e_flags);
   if (!ElfFlags.empty())
     Str = Str + ", " + ElfFlags;
@@ -3921,6 +3990,8 @@ static void printSectionDescription(formatted_raw_ostream &OS,
     OS << ", l (large)";
   else if (EMachine == EM_ARM)
     OS << ", y (purecode)";
+  else if (EMachine == EM_RL78)
+    OS << "  Y (absolute address section), ";
 
   OS << ", p (processor specific)\n";
 }
@@ -6841,6 +6912,10 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
     else if (E.e_machine == EM_XTENSA)
       W.printFlags("Flags", E.e_flags, ArrayRef(ElfHeaderXtensaFlags),
                    unsigned(ELF::EF_XTENSA_MACH));
+    else if (E.e_machine == EM_RL78){
+      SmallVector<EnumEntry<unsigned>,8> setFlags = extractRL78Flags(E.e_flags);
+      W.printFlags("Flags", E.e_flags, makeArrayRef(setFlags));
+    }
     else
       W.printFlags("Flags", E.e_flags);
     W.printNumber("HeaderSize", E.e_ehsize);

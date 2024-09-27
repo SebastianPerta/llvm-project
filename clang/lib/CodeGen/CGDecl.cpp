@@ -579,7 +579,7 @@ namespace {
     bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
-      llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
+      llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore, V->getType());
       CGF.Builder.CreateCall(F, V);
     }
   };
@@ -1627,11 +1627,14 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
 
     if (!VarAllocated) {
       if (!DidCallStackSave) {
+        llvm::Type *StackPtrTy =
+            getLangOpts().RenesasRL78DataModel ? AllocaInt8PtrTy : Int8PtrTy;
+
         // Save the stack.
         Address Stack =
-            CreateTempAlloca(Int8PtrTy, getPointerAlign(), "saved_stack");
+            CreateTempAlloca(StackPtrTy, getPointerAlign(), "saved_stack");
 
-        llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::stacksave);
+        llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::stacksave, StackPtrTy);
         llvm::Value *V = Builder.CreateCall(F);
         Builder.CreateStore(V, Stack);
 

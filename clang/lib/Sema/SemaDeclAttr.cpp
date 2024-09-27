@@ -7802,6 +7802,86 @@ static void handleRISCVInterruptAttr(Sema &S, Decl *D,
   D->addAttr(::new (S.Context) RISCVInterruptAttr(S.Context, AL, Kind));
 }
 
+static void handleRL78InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL,
+                                    bool brk = false) {
+
+  unsigned Specs = 0;
+  SmallVector<unsigned, 4> ExtraDataVects;
+  if (AL.getNumArgs() > 0) {
+    Expr *SpecsExpr = static_cast<Expr *>(AL.getArgAsExpr(0));
+    std::optional<llvm::APSInt> SpecsInt =
+        SpecsExpr->getIntegerConstantExpr(S.Context);
+
+    if (!SpecsInt.has_value()) {
+      S.Diag(D->getLocation(), diag::warn_attribute_invalid_on_definition)
+          << (brk ? "'brk_interrupt'" : "'interrupt'") << ExpectedFunction;
+      return;
+    }
+
+    Specs = static_cast<unsigned>(SpecsInt.value().getZExtValue());
+
+	if (AL.getNumArgs() > 1) {
+      for (unsigned int i = 1; i < AL.getNumArgs(); i++) {
+        Expr *VectsExpr = static_cast<Expr *>(AL.getArgAsExpr(i));
+        std::optional<llvm::APSInt> VectsInt =
+            VectsExpr->getIntegerConstantExpr(S.Context);
+
+        if (!VectsInt.has_value()) {
+          S.Diag(D->getLocation(), diag::warn_attribute_invalid_on_definition)
+              << (brk ? "'brk_interrupt'" : "'interrupt'") << ExpectedFunction;
+          return;
+        }
+        ExtraDataVects.push_back(
+            static_cast<unsigned>(VectsInt.value().getZExtValue()));
+      }
+    }
+  }
+
+  // Semantic checks for a function with the 'interrupt' attribute:
+  // - Must be a function.
+  // - Must have no parameters.
+  // - Must return void.
+
+  if (D->getFunctionType() == nullptr) {
+    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << (brk ? "'brk_interrupt'" : "'interrupt'") << ExpectedFunction;
+    return;
+  }
+
+  if (hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) {
+    S.Diag(D->getLocation(), diag::warn_rl78_interrupt_attribute_parameters) << 0;
+    return;
+  }
+
+  if (!getFunctionOrMethodResultType(D)->isVoidType()) {
+    // TODO: revisit error message
+    S.Diag(getFunctionOrMethodResultSourceRange(D).getBegin(),
+           diag::warn_rl78_interrupt_attribute_return_type)
+        << (S.Context.getTargetInfo().getTriple().getArch() == llvm::Triple::x86
+                ? 0
+                : 1)
+        << 0;
+    return;
+  }
+
+  // Silently drop the __far attribute
+  FunctionDecl *FD = cast<FunctionDecl>(D);
+  if (getAddressSpace(FD->getType(), S.Context) == LangAS::__far_code &&
+      (brk || !ExtraDataVects.empty())) {
+    const FunctionProtoType *FPT = FD->getType()->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+    FD->setType(S.Context.getFunctionType(FPT->getReturnType(),
+                                          FPT->getParamTypes(), EPI));
+  }
+
+  if (brk) {
+    D->addAttr(::new (S.Context) RL78BRKInterruptAttr(S.Context, AL, Specs));
+  } else {
+    D->addAttr(::new (S.Context) RL78InterruptAttr(S.Context, AL, Specs, (unsigned *)ExtraDataVects.begin(), (unsigned)ExtraDataVects.size()));
+  }
+}
+
 static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Dispatch the interrupt attribute based on the current target.
   switch (S.Context.getTargetInfo().getTriple().getArch()) {
@@ -7825,6 +7905,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     handleRISCVInterruptAttr(S, D, AL);
+    break;
+  case llvm::Triple::RL78:
+    handleRL78InterruptAttr(S, D, AL);
     break;
   default:
     handleARMInterruptAttr(S, D, AL);
@@ -8825,6 +8908,125 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     S.Diag(AL.getLoc(), diag::err_attribute_invalid_on_decl)
         << AL << AL.isRegularKeywordAttribute() << D->getLocation();
     break;
+  //TODO: add proper checks
+  //TODO: add check for typedef
+  case ParsedAttr::AT_Saddr:
+      //Renesas CCRL specification:
+      //if __saddr is specified for a const type variable, a compilation error will occur
+      if (cast<VarDecl>(D)->getType().isConstQualified()) {
+        S.Diag(AL.getLoc(), diag::err_rl78_saddr_not_applicable);
+        break;
+      }
+      //Renesas CCRL specification:
+      // -If __saddr and __near or __far are specified together, a compilation error will occur.
+      if(cast<VarDecl>(D)->getType().hasAddressSpace()) {
+		S.Diag(AL.getLoc(), diag::err_expected) << "only one keyword or attribute. Also found near or far keywords or attributes.";
+        break;
+      }
+      // Saddr address space is [0xFFE20, 0xFFF20)
+      if(const auto *A = D->getAttr<RL78AddressAttr>()) {
+        if((A->getAddress() < 0xFFE20) || (A->getAddress() >= 0xFFF20)) {
+		  S.Diag(AL.getLoc(), diag::err_expected) << "an address between 0xFFE20 and 0xFFF20";
+          break;
+        }
+      }
+      D->addAttr(::new (S.Context) RL78SaddrAttr(S.Context, AL));
+      break;
+  case ParsedAttr::AT_RL78Far:
+    if (isa<FunctionDecl>(D) &&
+        getAddressSpace(cast<FunctionDecl>(D)->getType(), S.Context) == LangAS::__far_code) {
+      if (D->hasAttr<RL78CalltAttr>()) {
+        S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible)
+            << AL << "'__callt'";
+        AL.setInvalid();
+      }
+    }
+    break;
+  case ParsedAttr::AT_RL78Callt:
+    if(cast<FunctionDecl>(D)->isInlined()) {
+      S.Diag(AL.getLoc(), diag::err_attributes_are_not_compatible) << "callt" << "inline";
+      AL.setInvalid();
+    }
+    else
+      D->addAttr(::new (S.Context) RL78CalltAttr(S.Context, AL));
+    break;
+  case ParsedAttr::AT_BRKInterrupt:
+    handleRL78InterruptAttr(S, D, AL, true);
+    break;
+  case ParsedAttr::AT_Address: {
+    // Check the attribute argument.
+    if (AL.getNumArgs() != 1) {
+      S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments)
+          << AL << 1;
+      AL.setInvalid();
+      break;
+    }
+    // The address must by an 32 bit unsigned integer.
+    Expr *addressExpr = static_cast<Expr *>(AL.getArgAsExpr(0));
+    std::optional<llvm::APSInt> addressInt = addressExpr->getIntegerConstantExpr(S.Context);
+    if (!addressInt.has_value()) {
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+          << AL << AANT_ArgumentIntegerConstant
+          << addressExpr->getSourceRange();
+      AL.setInvalid();
+      break;
+    }
+    unsigned address = static_cast<unsigned>(addressInt.value().getZExtValue());
+	
+
+    // CCRL specification:
+    // When #pragma address is declared for a variable that is not a
+    // const-qualified variable and is explicitly or implicitly specified as
+    // near and if the specified absolute address is not in the range from
+    // 0x0F0000 to 0x0FFFFF, a compilation error will occur.
+    if ((!cast<VarDecl>(D)->getType().isConstQualified()) &&
+        (cast<VarDecl>(D)->getType().getAddressSpace() != LangAS::__far_data) &&
+        ((address < 0x0F0000) || (address > 0x0FFFFF))) {
+      // todo: change error message
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+          << AL << AANT_ArgumentIntegerConstant
+          << addressExpr->getSourceRange();
+      AL.setInvalid();
+      break;
+    }
+
+	// Saddr address space is [0xFFE20, 0xFFF20)
+    if(const auto *A = D->getAttr<RL78SaddrAttr>()) {
+      if((address < 0xFFE20) || (address >= 0xFFF20)) {
+        S.Diag(AL.getLoc(), diag::err_expected) << "an address between 0xFFE20 and 0xFFF20";
+        break;
+      }
+    }
+    if (const auto *A = D->getAttr<RL78AddressAttr>()) {
+      if ((address < 0x0F0000) || (address >= 0x0FFFFF)) {
+        S.Diag(AL.getLoc(), diag::err_expected) << "an address between 0x0F0000 and 0x0FFFFF";
+        break;
+      }
+      if ((address % 2 != 0)) {
+		  S.Diag(AL.getLoc(), diag::err_expected) << "an even address";
+        break;
+      }
+    }
+    D->addAttr(::new (S.Context) RL78AddressAttr(S.Context, AL, address));
+    // Just add a "dummy" section attribute to:
+    // -avoid implicit section attributes being set.
+    // -avoid CommonLinkage.
+    // -generate warnings when unsed togheter with section attribute.
+    // Another solution will be to check for !hasAttr<RL78AddressAttr>()
+    // in various locations.
+    //TODO: this dosn't solve the section attribute problem if that one is specfied first
+    std::string buf;
+    llvm::raw_string_ostream stream(buf);
+    stream << (llvm::format_hex_no_prefix(address, 5, true));
+    std::string section = "_AT" + stream.str();
+    D->addAttr(::new (S.Context) SectionAttr(S.Context, AL, section));
+    break;
+  }
+  case ParsedAttr::AT_InlineASM:
+    D->addAttr(::new (S.Context) RL78InlineASMAttr(S.Context, AL));
+    // Mark as naked, so we don't generate code that adjusts the stack, saves parameters, etc.
+    D->addAttr(::new (S.Context) NakedAttr(S.Context, AL));
+    break;
   case ParsedAttr::AT_Interrupt:
     handleInterruptAttr(S, D, AL);
     break;
@@ -9569,6 +9771,34 @@ void Sema::ProcessDeclAttributeList(
     Diag(D->getLocation(), diag::err_designated_init_attr_non_init);
     D->dropAttr<ObjCDesignatedInitializerAttr>();
   }
+   if (D->hasAttr<RL78CalltAttr>() && isa<FunctionDecl>(D)) {
+    QualType FnType = cast<FunctionDecl>(D)->getType();
+    if (getAddressSpace(FnType, Context) == LangAS::__far_code) {
+      bool HasExplicitFar = false;
+      for (const ParsedAttr &AL : AttrList) {
+        if (AL.getKind() == ParsedAttr::AT_RL78Far) {
+          HasExplicitFar = true;
+          Diag(AL.getLoc(), diag::err_attributes_are_not_compatible)
+              << AL << "'__callt'";
+          AL.setInvalid();
+        }
+      }
+      if (!HasExplicitFar) {
+        if (isa<FunctionProtoType>(FnType)) {
+          const FunctionProtoType *FPT = FnType->castAs<FunctionProtoType>();
+          FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+          EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+          cast<FunctionDecl>(D)->setType(Context.getFunctionType(
+              FPT->getReturnType(), FPT->getParamTypes(), EPI));
+        } else if (isa<FunctionNoProtoType>(FnType)) {
+          const FunctionNoProtoType *FNPT =
+              FnType->castAs<FunctionNoProtoType>();
+          cast<FunctionDecl>(D)->setType(Context.getFunctionNoProtoType(
+              FNPT->getReturnType(), FNPT->getExtInfo().withFar(false)));
+        }
+      }
+    }
+   }
 }
 
 // Helper for delayed processing TransparentUnion or BPFPreserveAccessIndexAttr

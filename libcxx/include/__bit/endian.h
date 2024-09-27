@@ -19,7 +19,11 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
+#ifdef __RL78__
+enum class endian  : long {
+#else
 enum class endian {
+#endif
   little = 0xDEAD,
   big = 0xFACE,
 #  if defined(_LIBCPP_LITTLE_ENDIAN)

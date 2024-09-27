@@ -824,6 +824,8 @@ getDummyLambdaType(Sema &S, SourceLocation Loc = SourceLocation()) {
   LangAS AS = S.getDefaultCXXMethodAddrSpace();
   if (AS != LangAS::Default)
     EPI.TypeQuals.addAddressSpace(AS);
+  if (S.getLangOpts().RenesasRL78CodeModel)
+    EPI.ExtInfo = EPI.ExtInfo.withFar(true);
 
   // C++1y [expr.prim.lambda]:
   //   The lambda return type is 'auto', which is replaced by the

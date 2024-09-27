@@ -36,6 +36,8 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#ifndef __RL78_32BIT_DOUBLES__ // not supported on RL78 unless -m64bit-doubles is specified
+
 // Avoid formatting to keep the changes with the original code minimal.
 // clang-format off
 
@@ -667,3 +669,5 @@ void __append_nine_digits(uint32_t __digits, char* const __result) {
 _LIBCPP_END_NAMESPACE_STD
 
 // clang-format on
+
+#endif // __RL78_32BIT_DOUBLES__

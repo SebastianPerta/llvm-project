@@ -7075,5 +7075,49 @@ address of ``x`` when ``x`` goes out of scope. If two or more variables share
 the same scope, their ``cleanup`` callbacks are invoked in the reverse order
 the variables were declared in. It is not possible to check the return value
 (if any) of these ``cleanup`` callback functions.
-}];
+  }];
+}
+
+def RL78InterruptDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "interrupt (RL78)";
+  let Content = [{
+Clang supports the GNU style ``__attribute__((interrupt))`` attribute on
+RL78 targets. This attribute may be attached to a function definition and
+instructs the backend to generate appropriate function entry/exit code so that
+it can be used directly as an interrupt service routine.
+
+For interrupt handlers intended to be used with the BRK opcode (i.e. those that 
+must end with RETB instead of RETI) please use ``__attribute__((brk_interrupt))``
+instead.
+  }];
+}
+
+def RL78InlineASMDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "inline_asm (RL78)";
+  let Content = [{
+Clang support the CCRL stype inline_asm pragma. This pragma allows the body of the 
+function to be assembly code. TODO: more
+  }];
+}
+
+def RL78SaddrDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "Saddr (RL78)";
+  let Content = [{
+Clang supports the GNU style ``__attribute__((saddr))``attribute on
+RL78 targets. This attribute may be attached to a global variable definition and
+instructs the backed that this variable will be allocated to the saddr memory area.
+  }];
+}
+
+def RL78VectorDocs : Documentation {
+  let Category = DocCatVariable;
+  let Heading = "Saddr (RL78)";
+  let Content = [{
+Clang supports the GNU style ``__attribute__((vector))``attribute on
+RL78 targets. This attribute may be attached to a function definition and
+instructs the backed that this TODO.
+  }];
 }

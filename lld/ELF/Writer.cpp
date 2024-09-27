@@ -838,10 +838,11 @@ static bool isRelroSection(const OutputSection *sec) {
 // * It is easy to check if a give branch was taken.
 // * It is easy two see how similar two ranks are (see getRankProximity).
 enum RankFlags {
-  RF_NOT_ADDR_SET = 1 << 27,
-  RF_NOT_ALLOC = 1 << 26,
-  RF_PARTITION = 1 << 18, // Partition number (8 bits)
-  RF_NOT_SPECIAL = 1 << 17,
+  RF_NOT_ADDR_SET = 1 << 28,
+  RF_NOT_ALLOC = 1 << 27,
+  RF_PARTITION = 1 << 19, // Partition number (8 bits)
+  RF_NOT_SPECIAL = 1 << 18,
+  // RF_RL78_FAR = 1 << 17
   RF_WRITE = 1 << 16,
   RF_EXEC_WRITE = 1 << 15,
   RF_EXEC = 1 << 14,
@@ -958,6 +959,17 @@ static unsigned getSectionRank(const OutputSection &osec) {
     // and match GNU ld.
     StringRef name = osec.name;
     if (name == ".sdata" || (osec.type == SHT_NOBITS && name != ".sbss"))
+      rank |= 1;
+  }
+
+  if (config->emachine == EM_RL78) {
+    // We want to differentiate between far and near sections, so we allocate
+    // the "orphan" <sec>_AT<address> sections near their <sec> counter-parts.
+    if (osec.name.startswith(".bssf") || 
+        osec.name.startswith(".frodata") || osec.name.startswith(".constf"))
+      rank |= 1 << 17;
+    if (osec.name.startswith(".bss") || osec.name.startswith(".rodata") ||
+        osec.name.startswith(".frodata") || osec.name.startswith(".const"))
       rank |= 1;
   }
 
@@ -1607,6 +1619,7 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
   ThunkCreator tc;
   AArch64Err843419Patcher a64p;
   ARMErr657417Patcher a32p;
+  config->noinhibitAssert = false;
   script->assignAddresses();
   // .ARM.exidx and SHF_LINK_ORDER do not require precise addresses, but they
   // do require the relative addresses of OutputSections because linker scripts
@@ -1645,8 +1658,56 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
       changed |= a32p.createFixes();
     }
 
+    //if (in.plt)
+    //  changed |= in.plt->updateAllocSize();
+
+    for (Partition &part : partitions) {
+      changed |= part.relaDyn->updateAllocSize();
+      if (part.relrDyn)
+        changed |= part.relrDyn->updateAllocSize();
+    }
+
+    const Defined *changedSym = script->assignAddresses();
+    if (!changed) {
+      // Some symbols may be dependent on section addresses. When we break the
+      // loop, the symbol values are finalized because a previous
+      // assignAddresses() finalized section addresses.
+      if (!changedSym)
+        break;
+      if (++assignPasses == 5) {
+        errorOrWarn("assignment to symbol " + toString(*changedSym) +
+                    " does not converge");
+        break;
+      }
+    }
+  }
+  pass = 0;
+  for (;;) {
+    bool changed = target->needsThunks && tc.createThunks(pass, outputSections);
+
+    // With Thunk Size much smaller than branch range we expect to
+    // converge quickly; if we get to 10 something has gone wrong.
+    if (changed && pass >= 10) {
+      error("thunk creation not converged");
+      break;
+    }
+
+    if (config->fixCortexA53Errata843419) {
+      if (changed)
+        script->assignAddresses();
+      changed |= a64p.createFixes();
+    }
+    if (config->fixCortexA8) {
+      if (changed)
+        script->assignAddresses();
+      changed |= a32p.createFixes();
+    }
+
     if (in.mipsGot)
       in.mipsGot->updateAllocSize();
+
+    if (in.plt)
+      changed |= in.plt->updateAllocSize();
 
     for (Partition &part : partitions) {
       changed |= part.relaDyn->updateAllocSize();
@@ -1685,6 +1746,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
              osec->name + " is not a multiple of alignment (" +
              Twine(osec->addralign) + ")");
     }
+  config->noinhibitAssert = true;
+  script->assignAddresses();
 }
 
 // If Input Sections have been shrunk (basic block sections) then
@@ -2229,10 +2292,12 @@ template <class ELFT> void Writer<ELFT>::addStartEndSymbols() {
 // __stop_<secname> symbols. They are at beginning and end of the section,
 // respectively. This is not requested by the ELF standard, but GNU ld and
 // gold provide the feature, and used by many programs.
+// If we are linking for the RL78 target, we always want to define the section start/stop
+// symbols.
 template <class ELFT>
 void Writer<ELFT>::addStartStopSymbols(OutputSection &osec) {
   StringRef s = osec.name;
-  if (!isValidCIdentifier(s))
+  if (!isValidCIdentifier(s) && config->emachine != llvm::ELF::EM_RL78)
     return;
   addOptionalRegular(saver().save("__start_" + s), &osec, 0,
                      config->zStartStopVisibility);
@@ -2671,6 +2736,14 @@ template <class ELFT> void Writer<ELFT>::setPhdrs(Partition &part) {
 
       if (!p->hasLMA)
         p->p_paddr = first->getLMA();
+
+      if (config->emachine == EM_RL78 && config->strideDSPMemoryArea &&
+          (p->p_vaddr != p->p_paddr) && (p->p_paddr + p->p_memsz >= 0xFD800) &&
+                 (p->p_paddr < 0xFF000)) {
+        // In case LMA != VMA and LMA and the phdr intersects with the DSP area
+        // we return an error.
+        error("unable to allocate program header in DSP area");
+      }
     }
 
     if (p->p_type == PT_GNU_RELRO) {

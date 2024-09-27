@@ -893,7 +893,8 @@ public:
   /// Convenience function that returns true if the block ends in a return
   /// instruction.
   bool isReturnBlock() const {
-    return !empty() && back().isReturn();
+    return !empty() && (getLastNonDebugInstr() != end()) &&
+           getLastNonDebugInstr()->isReturn();
   }
 
   /// Convenience function that returns true if the bock ends in a EH scope

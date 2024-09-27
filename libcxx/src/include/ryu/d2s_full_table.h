@@ -46,7 +46,11 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
+#ifdef __RL78__
+inline constexpr uint64_t __far __DOUBLE_POW5_INV_SPLIT_f[292][2] = {
+#else
 inline constexpr uint64_t __DOUBLE_POW5_INV_SPLIT[292][2] = {
+#endif
   {                    1u, 288230376151711744u }, {  3689348814741910324u, 230584300921369395u },
   {  2951479051793528259u, 184467440737095516u }, { 17118578500402463900u, 147573952589676412u },
   { 12632330341676300947u, 236118324143482260u }, { 10105864273341040758u, 188894659314785808u },
@@ -195,7 +199,11 @@ inline constexpr uint64_t __DOUBLE_POW5_INV_SPLIT[292][2] = {
   {  8599192303405213841u, 224711641857789488u }, { 14258051472207991719u, 179769313486231590u }
 };
 
+#ifdef __RL78__
+inline constexpr uint64_t __far __DOUBLE_POW5_SPLIT_f[326][2] = {
+#else
 inline constexpr uint64_t __DOUBLE_POW5_SPLIT[326][2] = {
+#endif
   {                    0u,  72057594037927936u }, {                    0u,  90071992547409920u },
   {                    0u, 112589990684262400u }, {                    0u, 140737488355328000u },
   {                    0u,  87960930222080000u }, {                    0u, 109951162777600000u },
@@ -360,6 +368,23 @@ inline constexpr uint64_t __DOUBLE_POW5_SPLIT[326][2] = {
   { 15019706394073012159u, 113923781555568710u }, {  9551260955736489391u, 142404726944460888u },
   {  5969538097335305869u,  89002954340288055u }, {  2850236603241744433u, 111253692925360069u }
 };
+
+#ifdef __RL78__
+template <unsigned N>
+struct __split_row { uint64_t r[N]; constexpr operator const uint64_t* const () const { return r; } };
+inline constexpr struct {
+    constexpr auto operator[](size_t idx) const {
+        const auto s = __DOUBLE_POW5_INV_SPLIT_f[idx];
+        return __split_row<2>{ s[0], s[1] };
+    }
+} __DOUBLE_POW5_INV_SPLIT;
+inline constexpr struct {
+    constexpr auto operator[](size_t idx) const {
+        const auto s = __DOUBLE_POW5_SPLIT_f[idx];
+        return __split_row<2>{ s[0], s[1] };
+    }
+} __DOUBLE_POW5_SPLIT;
+#endif
 
 _LIBCPP_END_NAMESPACE_STD
 

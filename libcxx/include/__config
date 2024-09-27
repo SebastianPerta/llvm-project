@@ -1166,7 +1166,7 @@ __sanitizer_verify_double_ended_contiguous_container(const void*, const void*, c
 #  endif
 
 #  if defined(__BIONIC__) || defined(__NuttX__) || defined(__Fuchsia__) || defined(__wasi__) ||                        \
-      defined(_LIBCPP_HAS_MUSL_LIBC) || defined(__OpenBSD__)
+      defined(_LIBCPP_HAS_MUSL_LIBC) || defined(__OpenBSD__) || defined(__RL78__)
 #    define _LIBCPP_PROVIDES_DEFAULT_RUNE_TABLE
 #  endif
 

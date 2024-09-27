@@ -252,6 +252,7 @@ struct Config {
   bool nmagic;
   bool noDynamicLinker = false;
   bool noinhibitExec;
+  bool noinhibitAssert;
   bool nostdlib;
   bool oFormatBinary;
   bool omagic;
@@ -269,6 +270,7 @@ struct Config {
   bool relocatable;
   bool relrGlibc = false;
   bool relrPackDynRelocs = false;
+  bool RL78FarCode;
   llvm::DenseSet<llvm::StringRef> saveTempsArgs;
   llvm::SmallVector<std::pair<llvm::GlobPattern, uint32_t>, 0> shuffleSections;
   bool singleRoRx;
@@ -284,6 +286,7 @@ struct Config {
   bool timeTraceEnabled;
   bool tocOptimize;
   bool pcRelOptimize;
+  bool strideDSPMemoryArea;
   bool undefinedVersion;
   bool unique;
   bool useAndroidRelrTags = false;

@@ -189,10 +189,17 @@ class SafeStack {
   void TryInlinePointerAddress();
 
 public:
+  static Type *getStackPtrTy(Function &F) {
+    auto M = F.getParent();
+    // FIXME: is there a better way to figure it out here if a RL78 target?
+    return Type::getInt8PtrTy(M->getContext(),
+        StringRef(M->getTargetTriple()).startswith("rl78") ?
+        M->getDataLayout().getAllocaAddrSpace() : 0);
+  }
   SafeStack(Function &F, const TargetLoweringBase &TL, const DataLayout &DL,
             DomTreeUpdater *DTU, ScalarEvolution &SE)
       : F(F), TL(TL), DL(DL), DTU(DTU), SE(SE),
-        StackPtrTy(Type::getInt8PtrTy(F.getContext())),
+        StackPtrTy(getStackPtrTy(F)),
         IntPtrTy(DL.getIntPtrType(F.getContext())),
         Int32Ty(Type::getInt32Ty(F.getContext())),
         Int8Ty(Type::getInt8Ty(F.getContext())) {}

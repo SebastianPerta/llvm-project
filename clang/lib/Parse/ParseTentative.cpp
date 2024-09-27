@@ -1822,6 +1822,12 @@ Parser::isCXXDeclarationSpecifier(ImplicitTypenameContext AllowImplicitTypename,
 
     return TPResult::True;
   }
+
+  // RL78 address space qualifiers
+  case tok::kw___far:
+  case tok::kw___near:
+    if (getLangOpts().RenesasRL78)
+      return TPResult::True;
   default:
     return TPResult::False;
   }

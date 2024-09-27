@@ -335,6 +335,7 @@ public:
   bool isGnuIFunc() const { return type == llvm::ELF::STT_GNU_IFUNC; }
   bool isObject() const { return type == llvm::ELF::STT_OBJECT; }
   bool isFile() const { return type == llvm::ELF::STT_FILE; }
+  bool hasNoType() const { return type == llvm::ELF::STT_NOTYPE; }
 };
 
 // Represents a symbol that is defined in the current output file.

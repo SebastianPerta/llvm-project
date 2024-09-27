@@ -36,3 +36,9 @@ COMPILER_RT_ABI di_int __ashldi3(di_int a, int b) {
 #if defined(__ARM_EABI__)
 COMPILER_RT_ALIAS(__ashldi3, __aeabi_llsl)
 #endif
+
+#if defined(__RL78__)
+COMPILER_RT_ABI di_int _COM_llshl(di_int a, unsigned char b) {
+  return __ashldi3(a,b);
+}
+#endif

@@ -1166,7 +1166,8 @@ template <class ELFT> void ObjFile<ELFT>::postParse() {
     Symbol &sym = *symbols[i];
     uint32_t secIdx = eSym.st_shndx;
     uint8_t binding = eSym.getBinding();
-    if (LLVM_UNLIKELY(binding != STB_GLOBAL && binding != STB_WEAK &&
+    
+    if (config->emachine != EM_RL78 && LLVM_UNLIKELY(binding != STB_GLOBAL && binding != STB_WEAK &&
                       binding != STB_GNU_UNIQUE))
       errorOrWarn(toString(this) + ": symbol (" + Twine(i) +
                   ") has invalid binding: " + Twine((int)binding));
@@ -1598,6 +1599,8 @@ static uint16_t getBitcodeMachineKind(StringRef path, const Triple &t) {
     return t.isOSIAMCU() ? EM_IAMCU : EM_386;
   case Triple::x86_64:
     return EM_X86_64;
+  case Triple::RL78:
+    return EM_RL78;
   default:
     error(path + ": could not infer e_machine from bitcode target triple " +
           t.str());

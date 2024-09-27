@@ -100,6 +100,16 @@ LANGOPT(CPlusPlus20       , 1, 0, "C++20")
 LANGOPT(CPlusPlus23       , 1, 0, "C++23")
 LANGOPT(CPlusPlus26       , 1, 0, "C++26")
 LANGOPT(ObjC              , 1, 0, "Objective-C")
+
+LANGOPT(UnsignedBitfields        , 1, 0, "Unsigned Bitfields")
+LANGOPT(RenesasRL78              , 1, 0, "Renesas RL78 address spaces")
+LANGOPT(RenesasExt               , 1, 0, "Renesas CC extentions")
+LANGOPT(RenesasVaArgPromotion    , 1, 0, "Renesas VaArg promotion")
+LANGOPT(RenesasRL78CodeModel     , 1, 0, "Renesas RL78 memory model")
+LANGOPT(RenesasRL78DataModel     , 1, 0, "Renesas RL78 data model")
+ENUM_LANGOPT(RenesasRL78RomModel , RL78RomModelKind, 2, 
+            RL78RomModelKind::Near, "Renesas RL78 rom model")
+
 BENIGN_LANGOPT(ObjCDefaultSynthProperties , 1, 0,
                "Objective-C auto-synthesized properties")
 BENIGN_LANGOPT(EncodeExtendedBlockSig , 1, 0,

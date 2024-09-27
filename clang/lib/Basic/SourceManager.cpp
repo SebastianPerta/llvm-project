@@ -100,7 +100,7 @@ const char *ContentCache::getInvalidBOM(StringRef BufStr) {
 
 std::optional<llvm::MemoryBufferRef>
 ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
-                              SourceLocation Loc) const {
+                              SourceLocation Loc, llvm::CharSetConverter *Converter) const {
   // Lazily create the Buffer for ContentCaches that wrap files.  If we already
   // computed it, just return what we have.
   if (IsBufferInvalid)
@@ -133,7 +133,27 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
     return std::nullopt;
   }
 
-  Buffer = std::move(*BufferOrError);
+
+  // If -finput-charset was different from UTF-8, convert the buffer to UTF-8
+  if (Converter) {
+    StringRef foo = BufferOrError.get()->getBuffer();
+    SmallVector<char, 255> Result;
+    Result.resize(foo.size());
+    std::error_code error = Converter->convert(foo, Result);
+    if(error.value())
+      Diag.Report(Loc, diag::err_file_conversion_failed)
+          << ContentsEntry->getName() 
+          << error.message();
+
+    std::unique_ptr<llvm::WritableMemoryBuffer> wb =
+        llvm::WritableMemoryBuffer::getNewUninitMemBuffer(Result.size());
+    for (size_t i = 0; i < Result.size(); i++) {
+      wb.get()->getBufferStart()[i] = Result[i];
+    }
+    Buffer = std::move(wb);
+  } else {
+    Buffer = std::move(*BufferOrError);    
+  }
 
   // Check that the file's size fits in an 'unsigned' (with room for a
   // past-the-end value). This is deeply regrettable, but various parts of
@@ -158,7 +178,7 @@ ContentCache::getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
   // Unless this is a named pipe (in which case we can handle a mismatch),
   // check that the file's size is the same as in the file entry (which may
   // have come from a stat cache).
-  if (!ContentsEntry->isNamedPipe() &&
+  if (!Converter && !ContentsEntry->isNamedPipe() &&
       Buffer->getBufferSize() != (size_t)ContentsEntry->getSize()) {
     if (Diag.isDiagnosticInFlight())
       Diag.SetDelayedDiagnostic(diag::err_file_modified,

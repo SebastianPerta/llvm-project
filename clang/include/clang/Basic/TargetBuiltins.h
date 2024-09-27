@@ -89,6 +89,16 @@ namespace clang {
   };
   }
 
+  /// RL78 builtins
+  namespace RL78 {
+      enum {
+          LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsRL78.def"
+          LastTSBuiltin
+      };
+  }
+
   /// PPC builtins
   namespace PPC {
     enum {

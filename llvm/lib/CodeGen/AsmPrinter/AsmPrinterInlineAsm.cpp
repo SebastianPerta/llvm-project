@@ -326,6 +326,34 @@ static void EmitInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
   OS << '\n' << (char)0;  // null terminate string.
 }
 
+static void EmitRenesasInlineAsmStr(const char *AsmStr, const MachineInstr *MI,
+                                    MachineModuleInfo *MMI, AsmPrinter *AP,
+                                    unsigned LocCookie, raw_ostream &OS) {
+  const char *LastEmitted = AsmStr; // One past the last character emitted.
+
+  OS << '\t';
+
+  while (*LastEmitted) {
+    switch (*LastEmitted) {
+    default: {
+      // Not a special case, emit the string section literally.
+      const char *LiteralEnd = LastEmitted + 1;
+      while (*LiteralEnd && *LiteralEnd != '{' && *LiteralEnd != '|' &&
+             *LiteralEnd != '}' && *LiteralEnd != '$' && *LiteralEnd != '\n')
+        ++LiteralEnd;
+      OS.write(LastEmitted, LiteralEnd - LastEmitted);
+      LastEmitted = LiteralEnd;
+      break;
+    }
+    case '\n':
+      ++LastEmitted; // Consume newline character.
+      OS << '\n';    // Indent code with newline.
+      break;
+    }
+  }
+  OS << '\n' << (char)0; // null terminate string.
+}
+
 /// This method formats and emits the specified machine instruction that is an
 /// inline asm.
 void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
@@ -366,8 +394,13 @@ void AsmPrinter::emitInlineAsm(const MachineInstr *MI) const {
   SmallString<256> StringData;
   raw_svector_ostream OS(StringData);
 
-  AsmPrinter *AP = const_cast<AsmPrinter*>(this);
-  EmitInlineAsmStr(AsmStr, MI, MMI, MAI, AP, LocCookie, OS);
+  AsmPrinter *AP = const_cast<AsmPrinter*>(this);  
+  if (TM.getTargetTriple().isRL78() &&
+      MI->getMF()->getFunction().hasFnAttribute("inline_asm"))
+    // TODO: Maybe implement it as a new inline asm syntax?
+    EmitRenesasInlineAsmStr(AsmStr, MI, MMI, AP, LocCookie, OS);
+  else
+    EmitInlineAsmStr(AsmStr, MI, MMI, MAI, AP, LocCookie, OS);
 
   // Emit warnings if we use reserved registers on the clobber list, as
   // that might lead to undefined behaviour.

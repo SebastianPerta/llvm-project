@@ -1146,12 +1146,20 @@ def err_pragma_misplaced_in_decl : Error<"this pragma cannot appear in %0 declar
 
 // '#pragma clang section' related errors
 def err_pragma_expected_clang_section_name : Error<
-  "expected one of [bss|data|rodata|text|relro] section kind in '#pragma %0'">;
+  "expected one of [bss|data|rodata|text|relro] section kind in '#pragma clang %0'">;
 def err_pragma_clang_section_expected_equal : Error<
   "expected '=' following '#pragma clang section %select{invalid|bss|data|rodata|text|relro}0'">;
 def warn_pragma_expected_section_name : Warning<
   "expected a string literal for the section name in '#pragma %0' - ignored">,
   InGroup<IgnoredPragmas>;
+// '#pragma section' related errors
+def err_pragma_expected_ccrl_section_name : Error<
+  "invalid new section name used in '#pragma section'">;
+def warn_pragma_expected_section_type : Warning<
+  "expected one of [bss|data|const|text|relro] section kind in '#pragma section' - ignored">,
+  InGroup<IgnoredPragmas>;
+// range error
+def err_range_error : Error<"expected integer literal in range %0">;
 
 def warn_pragma_expected_section_push_pop_or_name : Warning<
   "expected push, pop or a string literal for the section name in '#pragma %0' - ignored">,
@@ -1570,6 +1578,9 @@ def err_pragma_invalid_keyword : Error<
   "invalid argument; expected 'enable'%select{|, 'full'}0%select{|, 'assume_safety'}1 or 'disable'">;
 def err_pragma_pipeline_invalid_keyword : Error<
     "invalid argument; expected 'disable'">;
+
+def err_pragma_argument : Error<
+    "invalid argument %0 for pragma or attribute %1">;
 
 // Pragma unroll support.
 def warn_pragma_unroll_cuda_value_in_parens : Warning<

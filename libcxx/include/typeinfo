@@ -208,7 +208,24 @@ struct __type_info_implementations {
   struct __unique_impl : __string_impl_base {
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_ALWAYS_INLINE
     static size_t __hash(__type_name_t __v) _NOEXCEPT {
+#ifdef __RL78__
+      // RL78: this is needed for far code/data pointers as they are larger than size_t;
+      // based of the __hash() implementation from the struct __non_unique_impl below
+      if _LIBCPP_CONSTEXPR_SINCE_CXX17 (sizeof(__v) > sizeof(size_t)) {
+        union {
+          __type_name_t __d;
+          unsigned char __t[sizeof(__v)];
+        };
+        __d = __v;
+        size_t __hash = 5381;
+        for (unsigned __i = 0; __i != sizeof(__t); ++__i)
+          __hash = (__hash * 33) ^ __t[__i];
+        return __hash;
+      }
+      return (size_t)reinterpret_cast<intptr_t>(__v);
+#else
       return reinterpret_cast<size_t>(__v);
+#endif
     }
     _LIBCPP_INLINE_VISIBILITY _LIBCPP_ALWAYS_INLINE
     static bool __eq(__type_name_t __lhs, __type_name_t __rhs) _NOEXCEPT {

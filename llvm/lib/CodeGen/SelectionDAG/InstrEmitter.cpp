@@ -1307,10 +1307,18 @@ EmitSpecialNode(SDNode *Node, bool IsClone, bool IsCloned,
     // Remember registers that are part of early-clobber defs.
     SmallVector<unsigned, 8> ECRegs;
 
+    const auto GetAsFlags = [&](SDValue Op) {
+      const auto RL78fd = MF->getSubtarget().getTargetTriple().isRL78() &&
+                          MF->getDataLayout().getPointerSizeInBits() == 32;
+      return (RL78fd && Op.getOpcode() == -274) ? /*RL78::HI16_rp_rp*/ // FIXME: this is not ok...
+        ((cast<ConstantSDNode>(Op.getOperand(0).getOperand(0))->getZExtValue() << 16) |
+          cast<ConstantSDNode>(Op.getOperand(1).getOperand(0))->getZExtValue()) :
+        cast<ConstantSDNode>(Op)->getZExtValue();
+    };
+
     // Add all of the operand registers to the instruction.
     for (unsigned i = InlineAsm::Op_FirstOperand; i != NumOps;) {
-      unsigned Flags =
-        cast<ConstantSDNode>(Node->getOperand(i))->getZExtValue();
+      unsigned Flags = GetAsFlags(Node->getOperand(i));
       const unsigned NumVals = InlineAsm::getNumOperandRegisters(Flags);
 
       GroupIdx.push_back(MIB->getNumOperands());

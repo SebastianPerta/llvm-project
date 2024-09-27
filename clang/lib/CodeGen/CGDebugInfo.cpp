@@ -989,6 +989,18 @@ llvm::DIType *CGDebugInfo::CreateQualifiedType(QualType Ty,
 
   stripUnusedQualifiers(Qc);
 
+  // Since in QualType::getLocalQualifiers we keep adding the __far
+  // specifier for far functions, we can end up in an infinite recursive loop.
+  // So we strip that far qualifier here.
+  if (isa<FunctionType>(T->getUnqualifiedDesugaredType()) &&
+      cast<FunctionType>(T->getUnqualifiedDesugaredType())->getFar()) {
+    const FunctionProtoType *FPT = T->castAs<FunctionProtoType>();
+    FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+    EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+    T = CGM.getContext().getFunctionType(FPT->getReturnType(),
+                                          FPT->getParamTypes(), EPI).getTypePtr();
+  }
+
   // We will create one Derived type for one qualifier and recurse to handle any
   // additional ones.
   llvm::dwarf::Tag Tag = getNextQualifier(Qc);

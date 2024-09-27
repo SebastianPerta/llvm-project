@@ -52,6 +52,95 @@ struct PragmaPackHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
+struct CCRLPragmaHandler : public PragmaHandler {
+  explicit CCRLPragmaHandler(StringRef name, Sema &S) : PragmaHandler(name), Actions(S) {}
+  //void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+  //                  Token &FirstToken) override;
+  protected:
+    Sema &Actions;
+};
+
+struct PragmaInterruptHandler : public CCRLPragmaHandler {
+  explicit PragmaInterruptHandler(Sema &S) : CCRLPragmaHandler("interrupt", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaBrkInterruptHandler : public CCRLPragmaHandler {
+  explicit PragmaBrkInterruptHandler(Sema &S) : CCRLPragmaHandler("interrupt_brk", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaSectionHandler : public PragmaHandler {
+  explicit PragmaSectionHandler(Sema &S) : PragmaHandler("section"), Actions(S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+
+private:
+  Sema &Actions;
+};
+
+struct PragmaInlineHandler : public CCRLPragmaHandler {
+  explicit PragmaInlineHandler(Sema &S) : CCRLPragmaHandler("inline", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaNoInlineHandler : public CCRLPragmaHandler {
+  explicit PragmaNoInlineHandler(Sema &S) : CCRLPragmaHandler("noinline", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaInlineASMHandler : public CCRLPragmaHandler {
+  explicit PragmaInlineASMHandler(Sema &S) : CCRLPragmaHandler("inline_asm", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaAddressHandler : public CCRLPragmaHandler {
+  explicit PragmaAddressHandler(Sema &S) : CCRLPragmaHandler("address", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaSaddrHandler : public CCRLPragmaHandler {
+  explicit PragmaSaddrHandler(Sema &S) : CCRLPragmaHandler("saddr", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaCalltHandler : public CCRLPragmaHandler {
+  explicit PragmaCalltHandler(Sema &S) : CCRLPragmaHandler("callt", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaNearHandler : public CCRLPragmaHandler {
+  explicit PragmaNearHandler(Sema &S) : CCRLPragmaHandler("near", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaFarHandler : public CCRLPragmaHandler {
+  explicit PragmaFarHandler(Sema &S) : CCRLPragmaHandler("far", S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaCCRLPackHandler : public PragmaHandler {
+  explicit PragmaCCRLPackHandler() : PragmaHandler("pack") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
+struct PragmaCCRLUnpackHandler : public PragmaHandler {
+  explicit PragmaCCRLUnpackHandler() : PragmaHandler("unpack") {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+};
+
 struct PragmaClangSectionHandler : public PragmaHandler {
   explicit PragmaClangSectionHandler(Sema &S)
              : PragmaHandler("section"), Actions(S) {}
@@ -378,8 +467,10 @@ void Parser::initializePragmaHandlers() {
   OptionsHandler = std::make_unique<PragmaOptionsHandler>();
   PP.AddPragmaHandler(OptionsHandler.get());
 
-  PackHandler = std::make_unique<PragmaPackHandler>();
-  PP.AddPragmaHandler(PackHandler.get());
+  if(!getLangOpts().RenesasExt) {
+    PackHandler = std::make_unique<PragmaPackHandler>();
+    PP.AddPragmaHandler(PackHandler.get());
+  }
 
   MSStructHandler = std::make_unique<PragmaMSStructHandler>();
   PP.AddPragmaHandler(MSStructHandler.get());
@@ -449,8 +540,13 @@ void Parser::initializePragmaHandlers() {
     PP.AddPragmaHandler(MSConstSeg.get());
     MSCodeSeg = std::make_unique<PragmaMSPragma>("code_seg");
     PP.AddPragmaHandler(MSCodeSeg.get());
-    MSSection = std::make_unique<PragmaMSPragma>("section");
-    PP.AddPragmaHandler(MSSection.get());
+    // Since there's no restriction in place on using -fms-extensions for RL78
+    // when using both -fms-extensions and -frenesas-extensions there's a conflict here.
+    // The Renesas one has priority over the Microsoft one.
+    if(!getLangOpts().RenesasExt) {
+      MSSection = std::make_unique<PragmaMSPragma>("section");
+      PP.AddPragmaHandler(MSSection.get());
+    }
     MSStrictGuardStackCheck =
         std::make_unique<PragmaMSPragma>("strict_gs_check");
     PP.AddPragmaHandler(MSStrictGuardStackCheck.get());
@@ -513,6 +609,51 @@ void Parser::initializePragmaHandlers() {
     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
   }
+
+  if(getLangOpts().RenesasExt) {
+    CCRLPackHandler = std::make_unique<PragmaCCRLPackHandler>();
+    PP.AddPragmaHandler(CCRLPackHandler.get());
+
+    CCRLUnpackHandler = std::make_unique<PragmaCCRLUnpackHandler>();
+    PP.AddPragmaHandler(CCRLUnpackHandler.get());
+
+    // Provide the pragmas only for C dialects not C++, in C++ we use __attribute__
+    // The motiviation behind this is overloading.
+    if(getLangOpts().C99) {
+      InterruptHandler = std::make_unique<PragmaInterruptHandler>(Actions);
+      PP.AddPragmaHandler(InterruptHandler.get());
+
+      BrkInterruptHandler = std::make_unique<PragmaBrkInterruptHandler>(Actions);
+      PP.AddPragmaHandler(BrkInterruptHandler.get());
+
+      SectionHandler = std::make_unique<PragmaSectionHandler>(Actions);
+      PP.AddPragmaHandler(SectionHandler.get());
+
+      InlineHandler = std::make_unique<PragmaInlineHandler>(Actions);
+      PP.AddPragmaHandler(InlineHandler.get());
+
+      NoInlineHandler = std::make_unique<PragmaNoInlineHandler>(Actions);
+      PP.AddPragmaHandler(NoInlineHandler.get());
+
+      InlineASMHandler = std::make_unique<PragmaInlineASMHandler>(Actions);
+      PP.AddPragmaHandler(InlineASMHandler.get());
+
+      AddressHandler = std::make_unique<PragmaAddressHandler>(Actions);
+      PP.AddPragmaHandler(AddressHandler.get());
+
+      SaddrHandler = std::make_unique<PragmaSaddrHandler>(Actions);
+      PP.AddPragmaHandler(SaddrHandler.get());
+
+      CalltHandler = std::make_unique<PragmaCalltHandler>(Actions);
+      PP.AddPragmaHandler(CalltHandler.get());
+
+      NearHandler = std::make_unique<PragmaNearHandler>(Actions);
+      PP.AddPragmaHandler(NearHandler.get());
+
+      FarHandler = std::make_unique<PragmaFarHandler>(Actions);
+      PP.AddPragmaHandler(FarHandler.get());
+    }
+  }
 }
 
 void Parser::resetPragmaHandlers() {
@@ -523,8 +664,10 @@ void Parser::resetPragmaHandlers() {
   GCCVisibilityHandler.reset();
   PP.RemovePragmaHandler(OptionsHandler.get());
   OptionsHandler.reset();
-  PP.RemovePragmaHandler(PackHandler.get());
-  PackHandler.reset();
+  if(!getLangOpts().RenesasExt) {
+    PP.RemovePragmaHandler(PackHandler.get());
+    PackHandler.reset();
+  }
   PP.RemovePragmaHandler(MSStructHandler.get());
   MSStructHandler.reset();
   PP.RemovePragmaHandler(UnusedHandler.get());
@@ -570,8 +713,10 @@ void Parser::resetPragmaHandlers() {
     MSConstSeg.reset();
     PP.RemovePragmaHandler(MSCodeSeg.get());
     MSCodeSeg.reset();
-    PP.RemovePragmaHandler(MSSection.get());
-    MSSection.reset();
+    if(!getLangOpts().RenesasExt) {
+      PP.RemovePragmaHandler(MSSection.get());
+      MSSection.reset();
+    }
     PP.RemovePragmaHandler(MSStrictGuardStackCheck.get());
     MSStrictGuardStackCheck.reset();
     PP.RemovePragmaHandler(MSFunction.get());
@@ -643,6 +788,49 @@ void Parser::resetPragmaHandlers() {
   if (getTargetInfo().getTriple().isRISCV()) {
     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
     RISCVPragmaHandler.reset();
+  }
+
+  if(getLangOpts().RenesasExt) {
+    PP.RemovePragmaHandler(CCRLPackHandler.get());
+    CCRLPackHandler.reset();
+
+    PP.RemovePragmaHandler(CCRLUnpackHandler.get());
+    CCRLUnpackHandler.reset();
+
+    if(getLangOpts().C99) {
+      PP.RemovePragmaHandler(InterruptHandler.get());
+      InterruptHandler.reset();
+
+      PP.RemovePragmaHandler(BrkInterruptHandler.get());
+      BrkInterruptHandler.reset();
+
+      PP.RemovePragmaHandler(SectionHandler.get());
+      SectionHandler.reset();
+
+      PP.RemovePragmaHandler(InlineHandler.get());
+      InlineHandler.reset();
+
+      PP.RemovePragmaHandler(NoInlineHandler.get());
+      NoInlineHandler.reset();
+
+      PP.RemovePragmaHandler(InlineASMHandler.get());
+      InlineASMHandler.reset();
+
+      PP.RemovePragmaHandler(AddressHandler.get());
+      AddressHandler.reset();
+
+      PP.RemovePragmaHandler(SaddrHandler.get());
+      SaddrHandler.reset();
+
+      PP.RemovePragmaHandler(CalltHandler.get());
+      CalltHandler.reset();
+
+      PP.RemovePragmaHandler(NearHandler.get());
+      NearHandler.reset();
+
+      PP.RemovePragmaHandler(FarHandler.get());
+      FarHandler.reset();
+    }
   }
 }
 
@@ -2148,6 +2336,497 @@ void PragmaPackHandler::HandlePragma(Preprocessor &PP,
                       /*IsReinject=*/false);
 }
 
+struct RenesasCCRLInterruptPragmaExtra {
+	unsigned ExtraData;
+	SmallVector<unsigned, 4> ExtraDataVects;
+};
+// [(interrupt-specification [,...])]
+//vect=address
+//bank={RB0|RB1|RB2|RB3}
+//enable={true|false}
+static RenesasCCRLInterruptPragmaExtra ParseInterruptSpec(Preprocessor &PP, Token &Tok, bool NotBrk) {
+	RenesasCCRLInterruptPragmaExtra extraInfoInterrupt;
+	extraInfoInterrupt.ExtraData = 0;
+	unsigned Result = 0;
+
+  assert(Tok.is(tok::l_paren));
+  bool bankSpecified = false;
+  bool enabledSpecified = false;
+  do {
+    PP.Lex(Tok);
+    // The token must be an identifier: one of 3 choices (vect, bank, enable).
+    if(Tok.isNot(tok::identifier)) {
+       PP.Diag(Tok.getLocation(), diag::err_expected) << "identifier (vect, bank or enable)";
+       return extraInfoInterrupt;
+    }
+    const IdentifierInfo *II = Tok.getIdentifierInfo();
+    // Consume '='.
+    PP.Lex(Tok);
+    if(Tok.isNot(tok::equal)) {
+       PP.Diag(Tok.getLocation(), diag::err_expected) << "equal (=) token";
+       return extraInfoInterrupt;
+    }
+    // Finally read the specification.
+    PP.Lex(Tok);
+    if(NotBrk && II->getName().compare("vect") == 0) {
+      if(Tok.isNot(tok::numeric_constant)) {
+        PP.Diag(Tok.getLocation(), diag::err_expected) << "a numeric constant";
+        return extraInfoInterrupt;
+      }
+      uint64_t Value;
+      if(!PP.parseSimpleIntegerLiteral(Tok, Value)) {
+        PP.Diag(Tok.getLocation(), diag::err_expected) << "a parsable integer literal";
+        return extraInfoInterrupt;
+      }
+      // Only an even value within the range from 0x0 to 0x7c can be specified.
+      if((Value > 0x7C) || (Value & 0x1)) {
+		PP.Diag(Tok.getLocation(), diag::err_expected) << "an even value between 0x0 and 0x7C";
+        return extraInfoInterrupt;
+      }
+	  
+	  if (std::find(extraInfoInterrupt.ExtraDataVects.begin(), extraInfoInterrupt.ExtraDataVects.end(), (unsigned)Value & 0xFF) != extraInfoInterrupt.ExtraDataVects.end()) {
+		  PP.Diag(Tok.getLocation(), diag::err_expected) << "unique values and not duplicates";
+	  }
+	  else {
+		  extraInfoInterrupt.ExtraDataVects.push_back((unsigned)Value & 0xFF);
+	  }
+
+	}
+	else if(!NotBrk && II->getName().compare("vect") == 0){
+      PP.Diag(Tok, diag::err_pragma_argument) << "vect" << "brk_interrupt";
+	  return extraInfoInterrupt;
+	}
+    else if(II->getName().compare("bank") == 0) {
+      
+      if (bankSpecified == true) { 
+        PP.Diag(Tok, diag::err_expected) << "only one specification of bank"; 
+        return extraInfoInterrupt;
+      } else  bankSpecified = true;
+
+      Result |= 0x1;
+
+      if (Tok.getIdentifierInfo() != NULL) {
+        const StringRef &bank = Tok.getIdentifierInfo()->getName();
+        if (bank.compare("RB0") == 0)
+          Result |= 0x0;
+        else if (bank.compare("RB1") == 0)
+          Result |= 0x1 << 1;
+        else if (bank.compare("RB2") == 0)
+          Result |= 0x2 << 1;
+        else if (bank.compare("RB3") == 0)
+          Result |= 0x3 << 1;
+        else {
+          PP.Diag(Tok, diag::err_expected) << "one of RB0, RB1, RB2 or RB3";
+          return extraInfoInterrupt;
+        }
+        PP.Lex(Tok);
+      }
+    }
+    else if(II->getName().compare("enable") == 0) {
+	  if (enabledSpecified == true) {
+	    PP.Diag(Tok, diag::err_expected) << "only one specification of enable";
+		return extraInfoInterrupt;
+	  } else enabledSpecified = true;
+      if (Tok.getIdentifierInfo() != NULL) {
+        const StringRef &enable = Tok.getIdentifierInfo()->getName();
+        if (enable.compare("false") == 0)
+          Result |= 0x0;
+        else if (enable.compare("true") == 0)
+          Result |= 0x1 << 3;
+        else {
+          PP.Diag(Tok, diag::err_expected) << "true or false";
+          return extraInfoInterrupt;
+        }
+        PP.Lex(Tok);
+      }
+    }
+    else {
+       PP.Diag(Tok.getLocation(), diag::err_pragma_invalid_keyword) << false << false;
+       return extraInfoInterrupt;
+    }
+    // ')' means end of specification.
+    if(Tok.is(tok::r_paren))
+      break;
+    if(Tok.isNot(tok::comma)) {
+      //TODO: change error meesage
+      PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol);
+      return extraInfoInterrupt;
+    }
+  } while (1);
+  // Consume the next token to move to the token after the interrupt spec.
+  PP.Lex(Tok);
+  extraInfoInterrupt.ExtraData = Result;
+  return extraInfoInterrupt;
+}
+
+// [(]function-name [,...][)]
+static void ParseCCRLPragmaFunctionList(Preprocessor &PP, Token &FirstTok, Sema::RenesasCCRLPragmaType PragmaType, 
+    SmallVectorImpl<Sema::RenesasCCRLPragmaEntry> &FunctionNames) {
+  Token Tok;
+  bool HasOpenParen = false;
+  // Consume '(' if present.
+  PP.Lex(Tok);
+  if (Tok.is(tok::l_paren)) {
+    PP.Lex(Tok);
+    HasOpenParen = true;
+  }
+  do {
+    // TODO: change error message
+    if(Tok.isNot(tok::identifier)) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument) << "expected" << "1" << "2";
+      return;
+    }
+    const IdentifierInfo *II = Tok.getIdentifierInfo();
+    const SourceLocation IdentifierLocation = Tok.getLocation();
+    //TODO: check reserved keywords
+    //TODO: is there a memory leak here?
+    PP.Lex(Tok);
+    unsigned extraData = 0;
+	SmallVector<unsigned, 4> ExtraDataVects;
+	RenesasCCRLInterruptPragmaExtra extraInfoInterrupt;
+    // In case of interrupt pragmas we can have extra 'spec' tokens starting with '('.
+	if (((PragmaType == Sema::RenesasCCRLPragmaType::CCRLInterrupt) ||
+		(PragmaType == Sema::RenesasCCRLPragmaType::CCRLBrkInterrupt)) &&
+		Tok.is(tok::l_paren)) {
+		extraInfoInterrupt = ParseInterruptSpec(PP, Tok, PragmaType == Sema::RenesasCCRLPragmaType::CCRLInterrupt);
+		extraData = extraInfoInterrupt.ExtraData;
+		ExtraDataVects = extraInfoInterrupt.ExtraDataVects;
+	}
+    // In case address pragma the indentifier must be followed by '=address'.
+    else if (PragmaType == Sema::RenesasCCRLPragmaType::CCRLAddress) {
+          if (Tok.isNot(tok::equal) && Tok.isNot(tok::numeric_constant)) {
+            PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument)
+                << "address"
+                << true
+                << "= or integer literal";
+            return;
+          }
+
+          if (Tok.is(tok::equal)) {
+            // Consume the optional '='.
+            PP.Lex(Tok);
+          }
+       
+       uint64_t Value;
+       if(!PP.parseSimpleIntegerLiteral(Tok, Value)) {
+        PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument) << "address" << true << "integer literal";
+        return;
+       }
+       extraData = (unsigned)Value;
+    }
+	
+    FunctionNames.push_back({II->getName().str(), IdentifierLocation, PragmaType, extraData, ExtraDataVects });
+    // Exit the loop if 
+    if(Tok.is(tok::eod)) break; 
+    if(Tok.is(tok::r_paren)) {
+      if(!HasOpenParen) {
+        //TODO: change
+        PP.Diag(Tok.getLocation(), diag::err_extraneous_rparen_in_condition);
+        return;
+      }
+      HasOpenParen = false;
+      break;
+    }
+    //TODO: we could make this an error like CCRL
+    if(Tok.isNot(tok::comma)) {
+      PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol) << FirstTok.getIdentifierInfo()->getName();
+      return;
+    } else {
+      //eat the comma
+      PP.Lex(Tok);
+    }
+  } while (1);
+  // 
+  if(Tok.is(tok::r_paren)) 
+    PP.Lex(Tok);
+  else if(HasOpenParen) {
+    PP.Diag(Tok.getLocation(), diag::err_extraneous_rparen_in_condition);
+    return;
+  }
+  if (Tok.isNot(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+      << "inline_asm";
+  }
+  return;
+}
+
+//#pragma interrupt 
+void PragmaInterruptHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLInterrupt, Entries);
+
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma interrupt_brk 
+void PragmaBrkInterruptHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLBrkInterrupt, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma section [ section-type][ new-section-name]
+//section-type:{text|const|data|bss}
+void PragmaSectionHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+  Token Tok;
+  auto SecKind = Sema::PragmaClangSectionKind::PCSK_Invalid;
+  // eat 'section'
+  PP.Lex(Tok);
+  // Renesas CCRL specification:
+  // When neither a section type nor a new section name are specified, all section names for the program area, constant 
+  // area, initialized data area, and uninitialized data area after the #pragma declaration are restored to their default section names
+  if (Tok.is(tok::eod)) {
+      Actions.ActOnPragmaClangSection(Tok.getLocation(),
+       Sema::PragmaClangSectionAction::PCSA_Clear,
+       Sema::PragmaClangSectionKind::PCSK_Text, "");
+
+      Actions.ActOnPragmaClangSection(Tok.getLocation(),
+       Sema::PragmaClangSectionAction::PCSA_Clear,
+       Sema::PragmaClangSectionKind::PCSK_Data, "");
+
+      Actions.ActOnPragmaClangSection(Tok.getLocation(),
+       Sema::PragmaClangSectionAction::PCSA_Clear,
+       Sema::PragmaClangSectionKind::PCSK_Rodata, "");
+
+      Actions.ActOnPragmaClangSection(Tok.getLocation(),
+       Sema::PragmaClangSectionAction::PCSA_Clear,
+       Sema::PragmaClangSectionKind::PCSK_BSS, "");
+      return;
+  }
+  else {
+     if (Tok.isNot(tok::identifier) && Tok.is(tok::kw_const))
+      SecKind = Sema::PragmaClangSectionKind::PCSK_Rodata;
+     else if(Tok.is(tok::identifier)) {
+      const IdentifierInfo *II = Tok.getIdentifierInfo();
+      if(II->getName().compare("text") == 0)
+        SecKind = Sema::PragmaClangSectionKind::PCSK_Text;
+      else if (II->getName().compare("data") == 0)
+        SecKind = Sema::PragmaClangSectionKind::PCSK_Data;
+      else if (II->getName().compare("bss") == 0)
+        SecKind = Sema::PragmaClangSectionKind::PCSK_BSS;
+     }
+  }
+  
+  if(SecKind != Sema::PragmaClangSectionKind::PCSK_Invalid) {
+    //if the identifier was a section type, eat the token
+    PP.Lex(Tok);
+  }
+
+  //Renesas CCRL specification:
+  //The characters shown below can be used in a new section name.
+  //The beginning of a name should be a character other than 0 to 9. 
+  //"." can be used only to specify the section type and it can be used only at the beginning. If it is used in a character 
+  //string not at the beginning, a compilation error will occur. If "." is used when the section type is not specified, a compilation error will occur.
+  //- 0 to 9
+  //- a to z
+  //- A to Z
+  //- .
+  //- @
+  //- _
+  std::string SecName = "";
+  if (Tok.is(tok::period)) {
+    if(SecKind == Sema::PragmaClangSectionKind::PCSK_Invalid) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_ccrl_section_name);
+      return;
+    }
+    SecName += ".";
+    PP.Lex(Tok); // eat the dot
+  }
+  while (Tok.isNot(tok::eod) && SecName.length() < 256) {
+    if (Tok.is(tok::at)) {
+      SecName += "@";
+    } else if (Tok.is(tok::identifier)) {
+      SecName += Tok.getIdentifierInfo()->getName();      
+    } else if (Tok.is(tok::numeric_constant)) {
+      SmallString<64> IntegerBuffer;
+      bool NumberInvalid = false;
+      StringRef Spelling = PP.getSpelling(Tok, IntegerBuffer,
+                                              &NumberInvalid);
+      SecName += Spelling;
+    } else {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_ccrl_section_name);
+      return;
+    }
+    PP.Lex(Tok);
+    const char *c = PP.getSourceManager().getCharacterData(Tok.getLocation());
+    //exit loop when we see a space between @ or identifiers
+    if(Tok.isNot(tok::eod) && c[-1] == ' ') break; //TODO: warning
+  }
+
+  if (Tok.isNot(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_section_type);
+    return;
+  }
+
+  if (SecKind != Sema::PragmaClangSectionKind::PCSK_Invalid) {
+    Actions.ActOnPragmaClangSection(
+        Tok.getLocation(),
+        (SecName.size() ? Sema::PragmaClangSectionAction::PCSA_Set
+                        : Sema::PragmaClangSectionAction::PCSA_Clear),
+        SecKind, SecName);
+  } else {
+    // we rename all sections, we prefix it with ... placeholder,
+    // which will be replaced by the TargetInfo based on the actual variable
+    // types
+    std::vector<std::string> placeholders = {
+        "...t...",
+        "...d...",
+        "...r...",
+        "...b...",
+    };
+    Actions.ActOnPragmaClangSection(
+        Tok.getLocation(), Sema::PragmaClangSectionAction::PCSA_Set,
+        Sema::PragmaClangSectionKind::PCSK_Text, placeholders[0] + SecName);
+
+    Actions.ActOnPragmaClangSection(
+        Tok.getLocation(), Sema::PragmaClangSectionAction::PCSA_Set,
+        Sema::PragmaClangSectionKind::PCSK_Data, placeholders[1] + SecName);
+
+    Actions.ActOnPragmaClangSection(
+        Tok.getLocation(), Sema::PragmaClangSectionAction::PCSA_Set,
+        Sema::PragmaClangSectionKind::PCSK_Rodata, placeholders[2] + SecName);
+
+    Actions.ActOnPragmaClangSection(
+        Tok.getLocation(), Sema::PragmaClangSectionAction::PCSA_Set,
+        Sema::PragmaClangSectionKind::PCSK_BSS, placeholders[3] + SecName);
+    return;
+  }
+}
+
+//#pragma inline [(]function-name [,...][)]
+void PragmaInlineHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLInline, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma noinline [(]function-name [,...][)]
+void PragmaNoInlineHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLNoInline, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma inline_asm [(]function-name [,...][)]
+void PragmaInlineASMHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLInlineASM, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+ 
+}
+
+//#pragma address
+void PragmaAddressHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLAddress, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma saddr [(]function-name [,...][)]
+void PragmaSaddrHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLSaddr, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma callt [(]function-name [,...][)]
+void PragmaCalltHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLCallt, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma near [(]function-name [,...][)]
+void PragmaNearHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLNear, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+//#pragma far [(]function-name [,...][)]
+void PragmaFarHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+
+  SmallVector<Sema::RenesasCCRLPragmaEntry, 4> Entries;
+  ParseCCRLPragmaFunctionList(PP, FirstToken, Sema::RenesasCCRLPragmaType::CCRLFar, Entries);
+  
+  Actions.ActOnCCRLPragmaEntry(Entries, FirstToken.getLocation());
+}
+
+static void HandleCCRLPackingPragma(Preprocessor &PP, Token &FirstToken, const char *alignment) {
+  SourceLocation PackLoc = FirstToken.getLocation();
+  Token Tok;
+
+  PP.Lex(Tok);
+  if (Tok.isNot(tok::eod)) {
+    //TODO: should return an error like CCRL?
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol) << "pack";
+    return;
+  }
+
+  Token Alignment;
+  Alignment.startToken();
+  Alignment.setKind(tok::numeric_constant);
+  Alignment.setLocation(PackLoc);
+  Alignment.setLiteralData(alignment);
+  Alignment.setLength(1);
+
+  Sema::PragmaPackInfo *Info =
+      PP.getPreprocessorAllocator().Allocate<Sema::PragmaPackInfo>(1);
+  Info->Action = Sema::PSK_Set;
+  Info->SlotLabel = StringRef();
+  Info->Alignment = Alignment;
+
+  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
+                              1);
+  Toks[0].startToken();
+  Toks[0].setKind(tok::annot_pragma_pack);
+  Toks[0].setLocation(PackLoc);
+  Toks[0].setAnnotationEndLoc(PackLoc);
+  Toks[0].setAnnotationValue(static_cast<void*>(Info));
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true,
+                      /*IsReinject=*/false);
+}
+//TODO: -pack CCRL options is the equivalent of -fpack-struct=1 
+//#pragma pack 
+void PragmaCCRLPackHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+  HandleCCRLPackingPragma(PP, FirstToken, "1");
+}
+
+//#pragma unpack
+void PragmaCCRLUnpackHandler::HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) {
+  HandleCCRLPackingPragma(PP, FirstToken, "2");
+}
+
 // #pragma ms_struct on
 // #pragma ms_struct off
 void PragmaMSStructHandler::HandlePragma(Preprocessor &PP,
@@ -2203,7 +2882,7 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
   PP.Lex(Tok); // eat 'section'
   while (Tok.isNot(tok::eod)) {
     if (Tok.isNot(tok::identifier)) {
-      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_clang_section_name) << "clang section";
+      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_clang_section_name);
       return;
     }
 
@@ -2219,7 +2898,7 @@ void PragmaClangSectionHandler::HandlePragma(Preprocessor &PP,
     else if (SecType->isStr("text"))
       SecKind = Sema::PragmaClangSectionKind::PCSK_Text;
     else {
-      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_clang_section_name) << "clang section";
+      PP.Diag(Tok.getLocation(), diag::err_pragma_expected_clang_section_name);
       return;
     }
 

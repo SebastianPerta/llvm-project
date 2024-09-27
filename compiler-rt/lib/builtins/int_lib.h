@@ -147,8 +147,8 @@ int __inline __builtin_clzll(uint64_t value) {
   uint32_t msh = (uint32_t)(value >> 32);
   uint32_t lsh = (uint32_t)(value & 0xFFFFFFFF);
   if (msh != 0)
-    return __builtin_clz(msh);
-  return 32 + __builtin_clz(lsh);
+    return clzsi(msh);
+  return 32 + clzsi(lsh);
 }
 #endif
 

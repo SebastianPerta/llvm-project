@@ -1052,6 +1052,19 @@ void RelocationScanner::processAux(RelExpr expr, RelType type, uint64_t offset,
     return;
   }
 
+  // In case of RL78 we need a PLT for every function above the 64KB limit.
+  // We add here entries for all of them and remove the ones below 64KB limit later.
+  //dbgs() << "Checking:" << sym.getName() << "\n";
+  if ((!config->RL78FarCode) && (config->emachine == EM_RL78) &&
+      (sym.hasNoType() || sym.isFunc() || sym.isSection()) &&
+      (sym.getOutputSection() &&
+       sym.getOutputSection()->flags & SHF_EXECINSTR) &&
+      !sym.isInPlt() && (type == R_RL78_DIR16U)) {
+    // dbgs() << sym.getName() << "\n";
+    sym.allocateAux();
+    in.plt->addEntry(sym);
+  }
+
   if (needsGot(expr)) {
     if (config->emachine == EM_MIPS) {
       // MIPS ABI has special rules to process GOT entries and doesn't
@@ -1531,10 +1544,10 @@ template <class ELFT> void elf::scanRelocations() {
   // directly processed by InputSection::relocateNonAlloc.
 
   // Deterministic parallellism needs sorting relocations which is unsuitable
-  // for -z nocombreloc. MIPS and PPC64 use global states which are not suitable
+  // for -z nocombreloc. MIPS, RL78 and PPC64 use global states which are not suitable
   // for parallelism.
   bool serial = !config->zCombreloc || config->emachine == EM_MIPS ||
-                config->emachine == EM_PPC64;
+                config->emachine == EM_PPC64 || config->emachine == EM_RL78;
   parallel::TaskGroup tg;
   for (ELFFileBase *f : ctx.objectFiles) {
     auto fn = [f]() {
@@ -1733,7 +1746,11 @@ void elf::postScanRelocations() {
           {R_ADDEND, target->symbolicRel, got->getTlsIndexOff(), 1, &dummy});
   }
 
-  assert(symAux.size() == 1);
+  // RL78 uses PLT to bypass near memory limitations for code,
+  // but it doesn't need GOT entries. 
+  // This means we already called allocateAux and this assert would fail.
+  if(config->emachine != EM_RL78)
+    assert(symAux.size() == 1);
   for (Symbol *sym : symtab.getSymbols())
     fn(*sym);
 

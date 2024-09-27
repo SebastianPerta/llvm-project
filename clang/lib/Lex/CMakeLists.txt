@@ -11,6 +11,7 @@ add_clang_library(clangLex
   HeaderSearch.cpp
   InitHeaderSearch.cpp
   Lexer.cpp
+  LiteralConverter.cpp
   LiteralSupport.cpp
   MacroArgs.cpp
   MacroInfo.cpp

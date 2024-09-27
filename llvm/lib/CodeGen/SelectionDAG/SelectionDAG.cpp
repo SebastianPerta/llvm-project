@@ -110,6 +110,14 @@ static void NewSDValueDbgMsg(SDValue V, StringRef Msg, SelectionDAG *G) {
   LLVM_DEBUG(dbgs() << Msg; V.getNode()->dump(G););
 }
 
+// Useful for debugging: enable to see the line from where the func is called
+#if 0
+static void NewSDValueDbgMsg_(SDValue V, StringRef Msg, SelectionDAG *G, int line) {
+  NewSDValueDbgMsg(V, (std::to_string(line) + " - " + Msg).str(), G);
+}
+#define NewSDValueDbgMsg(V, Msg, G) NewSDValueDbgMsg_(V, Msg, G, __LINE__)
+#endif
+
 //===----------------------------------------------------------------------===//
 //                              ConstantFPSDNode Class
 //===----------------------------------------------------------------------===//
@@ -1663,8 +1671,8 @@ SDValue SelectionDAG::getConstant(const ConstantInt &Val, const SDLoc &DL,
 }
 
 SDValue SelectionDAG::getIntPtrConstant(uint64_t Val, const SDLoc &DL,
-                                        bool isTarget) {
-  return getConstant(Val, DL, TLI->getPointerTy(getDataLayout()), isTarget);
+                                        bool isTarget, uint32_t AS) {
+  return getConstant(Val, DL, TLI->getPointerTy(getDataLayout(), AS), isTarget);
 }
 
 SDValue SelectionDAG::getShiftAmountConstant(uint64_t Val, EVT VT,
@@ -3771,6 +3779,12 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     // Remove high part of known bit mask
     Known = Known.trunc(EltBitWidth);
     break;
+  }
+  case ISD::BUILD_PAIR: {
+      Known = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
+      Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+      Known = Known.concat(Known2);
+      break;
   }
   case ISD::EXTRACT_VECTOR_ELT: {
     SDValue InVec = Op.getOperand(0);
@@ -7730,7 +7744,7 @@ SDValue SelectionDAG::getMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMCPY),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMCPY),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7770,7 +7784,7 @@ SDValue SelectionDAG::getAtomicMemcpy(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7832,7 +7846,7 @@ SDValue SelectionDAG::getMemmove(SDValue Chain, const SDLoc &dl, SDValue Dst,
       .setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMMOVE),
                     Dst.getValueType().getTypeForEVT(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(RTLIB::MEMMOVE),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7872,7 +7886,7 @@ SDValue SelectionDAG::getAtomicMemmove(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);
@@ -7952,7 +7966,7 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
     Args.push_back(CreateEntry(Size, DL.getIntPtrType(Ctx)));
     CLI.setLibCallee(
         TLI->getLibcallCallingConv(RTLIB::BZERO), Type::getVoidTy(Ctx),
-        getExternalSymbol(BzeroName, TLI->getPointerTy(DL)), std::move(Args));
+        getExternalSymbol(BzeroName, TLI->getPointerTy(DL, getDataLayout().getProgramAddressSpace())), std::move(Args));
   } else {
     TargetLowering::ArgListTy Args;
     Args.push_back(CreateEntry(Dst, Type::getInt8PtrTy(Ctx)));
@@ -7961,7 +7975,7 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
     CLI.setLibCallee(TLI->getLibcallCallingConv(RTLIB::MEMSET),
                      Dst.getValueType().getTypeForEVT(Ctx),
                      getExternalSymbol(TLI->getLibcallName(RTLIB::MEMSET),
-                                       TLI->getPointerTy(DL)),
+                                       TLI->getPointerTy(DL, getDataLayout().getProgramAddressSpace())),
                      std::move(Args));
   }
 
@@ -8002,7 +8016,7 @@ SDValue SelectionDAG::getAtomicMemset(SDValue Chain, const SDLoc &dl,
       .setLibCallee(TLI->getLibcallCallingConv(LibraryCall),
                     Type::getVoidTy(*getContext()),
                     getExternalSymbol(TLI->getLibcallName(LibraryCall),
-                                      TLI->getPointerTy(getDataLayout())),
+                                      TLI->getPointerTy(getDataLayout(), getDataLayout().getProgramAddressSpace())),
                     std::move(Args))
       .setDiscardResult()
       .setTailCall(isTailCall);

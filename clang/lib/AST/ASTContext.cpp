@@ -2263,12 +2263,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   case Type::RValueReference:
     // alignof and sizeof should never enter this code path here, so we go
     // the pointer route.
-    AS = cast<ReferenceType>(T)->getPointeeType().getAddressSpace();
+    AS = getAddressSpace(cast<ReferenceType>(T)->getPointeeType(), *this);
     Width = Target->getPointerWidth(AS);
     Align = Target->getPointerAlign(AS);
     break;
   case Type::Pointer:
-    AS = cast<PointerType>(T)->getPointeeType().getAddressSpace();
+    AS = getAddressSpace(cast<PointerType>(T)->getPointeeType(), *this);
     Width = Target->getPointerWidth(AS);
     Align = Target->getPointerAlign(AS);
     break;
@@ -3092,6 +3092,48 @@ QualType ASTContext::removeAddrSpaceQualType(QualType T) const {
   if (!T.hasAddressSpace())
     return T;
 
+  // If we are dealing with arrays, the address space is on the element type.
+  // TODO: should this be moved to strip()?
+  if (const ArrayType *Array = getAsArrayType(T.getDesugaredType(*this))) {
+    if (Array->isConstantArrayType()) {
+      const auto CArray = dyn_cast<ConstantArrayType>(Array);
+      return getConstantArrayType(
+          removeAddrSpaceQualType(CArray->getElementType()), CArray->getSize(),
+          CArray->getSizeExpr(), CArray->getSizeModifier(),
+          CArray->getIndexTypeCVRQualifiers());
+    } else if (Array->isIncompleteArrayType()) {
+      const auto IArray = dyn_cast<IncompleteArrayType>(Array);
+      return getIncompleteArrayType(
+          removeAddrSpaceQualType(IArray->getElementType()),
+          IArray->getSizeModifier(), IArray->getIndexTypeCVRQualifiers());
+    } else if (Array->isVariableArrayType()) {
+      const auto VArray = dyn_cast<VariableArrayType>(Array);
+      return getVariableArrayType(
+          removeAddrSpaceQualType(VArray->getElementType()),
+          VArray->getSizeExpr(), VArray->getSizeModifier(),
+          VArray->getIndexTypeCVRQualifiers(), VArray->getBracketsRange());
+    } else if (Array->isDependentSizedArrayType()) {
+      const auto DArray = dyn_cast<DependentSizedArrayType>(Array);
+      return getDependentSizedArrayType(
+          removeAddrSpaceQualType(DArray->getElementType()),
+          DArray->getSizeExpr(), DArray->getSizeModifier(),
+          DArray->getIndexTypeCVRQualifiers(), DArray->getBracketsRange());
+    } else {
+       llvm_unreachable("Unexpected array type!");
+    }
+  }
+
+  // Functions can have address spaces too, stored in their extinfo.
+  if (const FunctionType *Function = T->getAs<FunctionType>()) {
+    T = T.getDesugaredType(*this);
+    if (const FunctionProtoType *FPT = T->castAs<FunctionProtoType>()) {
+       FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+       EPI.ExtInfo = EPI.ExtInfo.withFar(false);
+       return this->getFunctionType(FPT->getReturnType(), FPT->getParamTypes(),
+                                    EPI);
+    }
+  }
+
   // If we are composing extended qualifiers together, merge together
   // into one ExtQuals node.
   QualifierCollector Quals;
@@ -3560,9 +3602,11 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
 
   // Convert the array size into a canonical width matching the pointer size for
   // the target.
+  // RL78: Keep array size == int size for -mfar-data
   llvm::APInt ArySize(ArySizeIn);
-  ArySize = ArySize.zextOrTrunc(Target->getMaxPointerWidth());
-
+  ArySize = ArySize.zextOrTrunc(getLangOpts().RenesasRL78DataModel
+                                    ? Target->getIntWidth()
+                                    : Target->getMaxPointerWidth());
   llvm::FoldingSetNodeID ID;
   ConstantArrayType::Profile(ID, *this, EltTy, ArySize, SizeExpr, ASM,
                              IndexTypeQuals);
@@ -4693,8 +4737,10 @@ QualType ASTContext::getTypedefType(const TypedefNameDecl *Decl,
   if (!Decl->TypeForDecl) {
     if (Underlying.isNull())
       Underlying = Decl->getUnderlyingType();
+    auto canon = (QualType)getCanonicalType(Underlying);
+    canon.setTypeSpecSign(Underlying.getTypeSpecSign());
     auto *NewType = new (*this, TypeAlignment) TypedefType(
-        Type::Typedef, Decl, QualType(), getCanonicalType(Underlying));
+        Type::Typedef, Decl, QualType(), CanQualType::CreateUnsafe(canon));
     Decl->TypeForDecl = NewType;
     Types.push_back(NewType);
     return QualType(NewType, 0);
@@ -8762,7 +8808,8 @@ ObjCInterfaceDecl *ASTContext::getObjCProtocolDecl() const {
 static TypedefDecl *CreateCharPtrNamedVaListDecl(const ASTContext *Context,
                                                  StringRef Name) {
   // typedef char* __builtin[_ms]_va_list;
-  QualType T = Context->getPointerType(Context->CharTy);
+  QualType T = Context->getPointerType(Context->getAddrSpaceQualType(Context->CharTy,
+    Context->getLangOpts().RenesasRL78DataModel ? LangAS::__near : LangAS::Default));
   return Context->buildImplicitTypedef(T, Name);
 }
 
@@ -8776,7 +8823,8 @@ static TypedefDecl *CreateCharPtrBuiltinVaListDecl(const ASTContext *Context) {
 
 static TypedefDecl *CreateVoidPtrBuiltinVaListDecl(const ASTContext *Context) {
   // typedef void* __builtin_va_list;
-  QualType T = Context->getPointerType(Context->VoidTy);
+  QualType T = Context->getPointerType(Context->getAddrSpaceQualType(Context->VoidTy,
+    Context->getLangOpts().RenesasRL78DataModel ? LangAS::__near : LangAS::Default));
   return Context->buildImplicitTypedef(T, "__builtin_va_list");
 }
 
@@ -10386,6 +10434,8 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     return {};
   if (lbaseInfo.getNoCfCheck() != rbaseInfo.getNoCfCheck())
     return {};
+  if (lbaseInfo.getFar() != rbaseInfo.getFar())
+    return {};
 
   // When merging declarations, it's common for supplemental information like
   // attributes to only be present in one of the declarations, and we generally
@@ -10692,14 +10742,38 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();
     }
-    QualType ResultType = mergeTypes(LHSPointee, RHSPointee, false,
-                                     Unqualified);
+
+    // This is done to merge nested pointers: char ** with char __near * __near *
+    bool ModifiedPointee = false;
+    if (getLangOpts().RenesasRL78 &&
+        LHSPointee.getAddressSpace() != RHSPointee.getAddressSpace()) {
+      if (LHSPointee.getQualifiers().isAddressSpaceSupersetOf(
+              RHSPointee.getQualifiers())) {
+        if (RHSPointee.hasAddressSpace())
+          RHSPointee = removeAddrSpaceQualType(RHSPointee);
+        RHSPointee =
+            getAddrSpaceQualType(RHSPointee, LHSPointee.getAddressSpace());
+        ModifiedPointee = true;
+      } else if (RHSPointee.getQualifiers().isAddressSpaceSupersetOf(
+                     LHSPointee.getQualifiers())) {
+        if (LHSPointee.hasAddressSpace())
+          LHSPointee = removeAddrSpaceQualType(LHSPointee);
+        LHSPointee =
+            getAddrSpaceQualType(LHSPointee, RHSPointee.getAddressSpace());
+        ModifiedPointee = true;
+      }
+    }
+
+    QualType ResultType =
+        mergeTypes(LHSPointee, RHSPointee, false, Unqualified);
     if (ResultType.isNull())
       return {};
-    if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
-      return LHS;
-    if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
-      return RHS;
+    if (!ModifiedPointee) {      
+        if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
+            return LHS;
+        if (getCanonicalType(RHSPointee) == getCanonicalType(ResultType))
+            return RHS;
+    }
     return getPointerType(ResultType);
   }
   case Type::BlockPointer:
@@ -11565,6 +11639,44 @@ QualType ASTContext::DecodeTypeStr(const char *&Str, const ASTContext &Context,
   return DecodeTypeFromStr(Str, Context, Error, RequireICE, AllowTypeModifiers);
 }
 
+static void HandleRL78BuiltinPrototypes(const ASTContext *Context,
+                                        StringRef Name, QualType &ResType,
+                                        SmallVector<QualType, 8> &ArgTypes,
+                                        FunctionType::ExtInfo &EI) {
+
+  // Make the builtin function far
+  if (Context->getLangOpts().RenesasRL78CodeModel)
+    EI = EI.withFar(true);
+
+  // See if we need to make some of the pointer arguments far
+  bool NeedsFarDataPointers = false;
+  bool IsFarRom = Context->getLangOpts().getRenesasRL78RomModel() == LangOptions::RL78RomModelKind::Far;
+  if (!Name.compare("memcpy") || !Name.compare( "memmove") ||
+      !Name.compare( "memset") || !Name.compare( "memcmp") ||
+      !Name.compare( "memchr") || !Name.compare( "strcpy") ||
+      !Name.compare( "strncpy") || !Name.compare( "strcat") ||
+      !Name.compare( "strncat") || !Name.compare( "strcmp") ||
+      !Name.compare( "strncmp") || !Name.compare( "strchr") ||
+      !Name.compare( "strcspn") || !Name.compare( "strpbrk") ||
+      !Name.compare( "strrchr") || !Name.compare( "strspn") ||
+      !Name.compare( "strstr") || !Name.compare( "strlen"))
+    NeedsFarDataPointers = IsFarRom;
+
+  if (ResType->isPointerType() &&
+      (NeedsFarDataPointers ||
+       ResType->getPointeeType().getQualifiers().hasConst() && IsFarRom))
+    ResType = Context->getPointerType(Context->getAddrSpaceQualType(
+        ResType->getPointeeType(), LangAS::__far_data));
+  for (size_t i = 0; i < ArgTypes.size(); i++) {
+    if (ArgTypes[i]->isPointerType() &&
+        (NeedsFarDataPointers ||
+         ArgTypes[i]->getPointeeType().getQualifiers().hasConst() && IsFarRom)) {
+      ArgTypes[i] = Context->getPointerType(Context->getAddrSpaceQualType(
+          ArgTypes[i]->getPointeeType(), LangAS::__far_data));
+    }
+  }
+}
+
 /// GetBuiltinType - Return the type for the specified builtin.
 QualType ASTContext::GetBuiltinType(unsigned Id,
                                     GetBuiltinTypeError &Error,
@@ -11615,6 +11727,7 @@ QualType ASTContext::GetBuiltinType(unsigned Id,
       Variadic, /*IsCXXMethod=*/false, /*IsBuiltin=*/true));
   if (BuiltinInfo.isNoReturn(Id)) EI = EI.withNoReturn(true);
 
+  HandleRL78BuiltinPrototypes(this, BuiltinInfo.getName(Id), ResType, ArgTypes, EI);
 
   // We really shouldn't be making a no-proto type here.
   if (ArgTypes.empty() && Variadic && !getLangOpts().requiresStrictPrototypes())
@@ -11883,6 +11996,13 @@ bool ASTContext::DeclMustBeEmitted(const Decl *D) {
 
     // Constructors and destructors are required.
     if (FD->hasAttr<ConstructorAttr>() || FD->hasAttr<DestructorAttr>())
+      return true;
+
+    // RL78: Always emit far the virtual methods as they aren't emitted at all if used
+    // only through ptrs to member functions (FIXME: find a better solution for this?)
+    if (getTargetInfo().getTriple().isRL78() &&
+        FD->getType()->getAs<FunctionType>()->getFar() &&
+        isa<CXXMethodDecl>(FD) && cast<CXXMethodDecl>(FD)->isVirtual())
       return true;
 
     // The key function for a class is required.  This rule only comes

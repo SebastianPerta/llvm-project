@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "ObjcopyOptions.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -23,6 +24,7 @@
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
+
 
 using namespace llvm;
 using namespace llvm::objcopy;
@@ -337,6 +339,8 @@ static const StringMap<MachineInfo> TargetMap{
     // LoongArch
     {"elf32-loongarch", {ELF::EM_LOONGARCH, false, true}},
     {"elf64-loongarch", {ELF::EM_LOONGARCH, true, true}},
+    //RENESAS
+    {"elf32-rl78", {ELF::EM_RL78, false, true}},
 };
 
 static Expected<TargetInfo>
@@ -725,6 +729,8 @@ objcopy::parseObjcopyOptions(ArrayRef<const char *> RawArgsArr,
   Config.OutputFormat = StringSwitch<FileFormat>(OutputFormat)
                             .Case("binary", FileFormat::Binary)
                             .Case("ihex", FileFormat::IHex)
+                            .Case("srec", FileFormat::SRec)
+                            .Case("symbolsrec", FileFormat::SymbolSRec)
                             .Default(FileFormat::Unspecified);
   if (Config.OutputFormat == FileFormat::Unspecified) {
     if (OutputFormat.empty()) {

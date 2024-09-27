@@ -172,6 +172,8 @@ public:
   friend class SectionWriter;                                                  \
   friend class IHexSectionWriterBase;                                          \
   friend class IHexSectionWriter;                                              \
+  friend class SRecSectionWriterBase;                                          \
+  friend class SRecSectionWriter;                                              \
   template <class ELFT> friend class ELFSectionWriter;                         \
   template <class ELFT> friend class ELFSectionSizer;
 
@@ -304,6 +306,134 @@ public:
   Error visit(const StringTableSection &Sec) override;
 };
 
+struct SRecRecord {
+  // Memory address of the record.
+  uint16_t Addr;
+  // Record type (see below).
+  uint16_t Type;
+  // Record data in hexadecimal form.
+  StringRef HexData;
+
+  // Helper method to get file length of the record
+  // including newline character
+  // 
+  static size_t getLength(size_t DataSize, uint32_t Addr, uint8_t Type,
+                          uint8_t *NewType = nullptr,
+                          uint8_t *AddrSize = nullptr) {
+    uint8_t newType;
+    // S0 record is the only record we emmit for now which doesn't depend
+    // on the address.
+    uint8_t addrSize = 2;
+    if (Type == InvalidType) {
+      if (DataSize) {
+        if (Addr <= 0xFFFFU) {
+          newType = SRecRecord::S1;
+          addrSize = 2;
+        } else if (Addr <= 0xFFFFFFU) {
+          newType = SRecRecord::S2;
+          addrSize = 3;
+        } else {
+          newType = SRecRecord::S3;
+          addrSize = 4;
+        }
+      } else {
+        if (Addr <= 0xFFFFU) {
+          newType = SRecRecord::S9;
+          addrSize = 2;
+        } else if (Addr <= 0xFFFFFFU) {
+          newType = SRecRecord::S8;
+          addrSize = 3;
+        } else {
+          newType = SRecRecord::S7;
+          addrSize = 4;
+        }
+      }
+    }
+    if (NewType)
+      *NewType = (Type == InvalidType)? newType : Type;
+    if (AddrSize)
+      *AddrSize = addrSize;
+    // STLL[AA...AA][DD...DD]CC'
+    return 2 + 2 + addrSize * 2 + DataSize * 2 + 2;
+  }
+
+  // Gets length of line in a file (getLength + CRLF).
+  static size_t getLineLength(size_t DataSize, uint32_t Addr, uint8_t Type,
+                              uint8_t *NewType = nullptr,
+                              uint8_t *AddrSize = nullptr) {
+    return getLength(DataSize, Addr, Type, NewType, AddrSize) + 2;
+  }
+
+  // Given type, address and data returns line which can
+  // be written to output file.
+  static IHexLineData getLine(uint8_t Type, uint32_t Addr,
+                              ArrayRef<uint8_t> Data);
+
+  // Calculates checksum of stringified record representation
+  // S must NOT contain the type (S[0-9]) and trailing whitespace
+  // characters
+  static uint8_t getChecksum(StringRef S);
+
+  enum Type {
+    // This record contains vendor specific ASCII text comment represented 
+    // as a series of hex digit pairs. It is common to see the data for this 
+    // record in the format of a null-terminated string.
+    S0 = 0,
+    // This record contains data that starts at a 16-bit address.
+    S1 = 1,
+    // This record contains data that starts at a 24-bit address.
+    S2 = 2,
+    // This record contains data that starts at a 32 - bit address.
+    S3 = 3,
+    // This record is reserved.
+    S4 = 4,
+    // This optional record contains a 16-bit count of S1/S2/S3 records.
+    S5 = 5,
+    // This optional record contains a 24-bit count of S1/S2/S3 records.
+    S6 = 6,
+    // This record contains the starting execution location at a 32-bit address.
+    S7 = 7,
+    // This record contains the starting execution location at a 24-bit address.
+    S8 = 8,
+    // This record contains the starting execution location at a 16-bit address.
+    S9 = 9,
+    // We have no other valid types.
+    InvalidType = 10
+  };
+};
+
+// Base class for SRecSectionWriter. This class implements writing algorithm,
+// but doesn't actually write records. It is used for output buffer size
+// calculation in SRecWriter::finalize.
+class SRecSectionWriterBase : public BinarySectionWriter {
+protected:
+  // Offset in the output buffer
+  uint64_t Offset = 0;
+
+  void writeSection(const SectionBase *Sec, ArrayRef<uint8_t> Data);
+  virtual void writeData(uint8_t Type, uint32_t Addr, ArrayRef<uint8_t> Data);
+
+public:
+  explicit SRecSectionWriterBase(WritableMemoryBuffer &Buf) : BinarySectionWriter(Buf) {}
+
+  uint64_t getBufferOffset() const { return Offset; }
+  void setBufferOffset(uint64_t offset) {  Offset = offset; }
+  Error visit(const Section &Sec) final;
+  Error visit(const OwnedDataSection &Sec) final;
+  Error visit(const StringTableSection &Sec) override;
+  Error visit(const DynamicRelocationSection &Sec) final;
+  using BinarySectionWriter::visit;
+};
+
+// Real SREC section writer
+class SRecSectionWriter : public SRecSectionWriterBase {
+public:
+  SRecSectionWriter(WritableMemoryBuffer &Buf) : SRecSectionWriterBase(Buf) {}
+
+  void writeData(uint8_t Type, uint32_t Addr, ArrayRef<uint8_t> Data) override;
+  Error visit(const StringTableSection &Sec) override;
+};
+
 class Writer {
 protected:
   Object &Obj;
@@ -385,6 +515,31 @@ public:
   Error finalize() override;
   Error write() override;
   IHexWriter(Object &Obj, raw_ostream &Out) : Writer(Obj, Out) {}
+};
+
+class SRecWriter : public Writer {
+  StringRef OutputFilename;
+  bool SymbolSRec;
+  std::string SymbolsStr;
+
+  struct SectionCompare {
+    bool operator()(const SectionBase *Lhs, const SectionBase *Rhs) const;
+  };
+
+  std::set<const SectionBase *, SectionCompare> Sections;
+  size_t TotalSize = 0;
+
+  Error checkSection(const SectionBase &Sec);
+  uint64_t writeEntryPointRecord(char *Buf);
+  uint64_t writeS0Record(char *Buf);
+  uint64_t writeSymbols();
+
+public:
+  ~SRecWriter() {}
+  Error finalize() override;
+  Error write() override;
+  SRecWriter(StringRef OutputFilename, Object &Obj, raw_ostream &Out, bool symbolSRec)
+      : Writer(Obj, Out), OutputFilename(OutputFilename), SymbolSRec(symbolSRec) {}
 };
 
 class SectionBase {

@@ -1812,6 +1812,35 @@ static bool canSinkInstructions(
     if (!I->isSameOperationAs(I0))
       return false;
 
+  //RL78: don't sink instruction if they can match set1/clr1.
+  //TODO: make this RL78 specific for upstream.
+  if (auto *Store = dyn_cast<StoreInst>(I0))
+    if (any_of(Insts, [&Store](const Instruction *I) -> bool {
+          if (!Store->isVolatile())
+            return false;
+          auto *I1 = dyn_cast<Instruction>(Store->getOperand(0));
+          if (!I1)
+            return false;
+          if (I1->getOpcode() != Instruction::And &&
+              I1->getOpcode() != Instruction::Or)
+            return false;
+          if (I1->getType()->getScalarSizeInBits() != 8 &&
+              I1->getType()->getScalarSizeInBits() != 16)
+            return false;
+          if (!isa<LoadInst>(I1->getOperand(0)))
+            return false;
+          auto *C = dyn_cast<ConstantInt>(I1->getOperand(1));
+          if (!C)
+            return false;
+          unsigned imm = C->getZExtValue();
+          if (I1->getOpcode() == Instruction::And)
+            imm = ~imm & (I1->getType()->getScalarSizeInBits() == 8? 0xFF : 0xFFFF);
+          if (!isPowerOf2_64(imm))
+            return false;
+          return true;
+        }))
+      return false;
+
   // All instructions in Insts are known to be the same opcode. If they have a
   // use, check that the only user is a PHI or in the same block as the
   // instruction, because if a user is in the same block as an instruction we're

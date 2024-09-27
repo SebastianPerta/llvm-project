@@ -25,6 +25,10 @@ namespace llvm {
 cl::opt<unsigned> AsmMacroMaxNestingDepth(
     "asm-macro-max-nesting-depth", cl::init(20), cl::Hidden,
     cl::desc("The maximum nesting depth allowed for assembly macros."));
+
+cl::opt<bool> EnableRL78CCRLAsmSyntax(
+    "rl78-ccrl-asm-syntax", cl::init(false),  cl::Hidden,
+    cl::desc("Enable CC-RL asm syntax parsing for RL78"));
 }
 
 MCAsmParser::MCAsmParser() = default;

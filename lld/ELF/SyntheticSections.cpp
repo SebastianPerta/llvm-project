@@ -2523,6 +2523,9 @@ PltSection::PltSection()
   // modify the instructions in the PLT entries.
   if (config->emachine == EM_SPARCV9)
     this->flags |= SHF_WRITE;
+
+  if (config->emachine == EM_RL78)
+    addralign = 2;
 }
 
 void PltSection::writeTo(uint8_t *buf) {
@@ -2545,6 +2548,35 @@ void PltSection::addEntry(Symbol &sym) {
 
 size_t PltSection::getSize() const {
   return headerSize + entries.size() * target->pltEntrySize;
+}
+
+// Used by RL78 to remove entries which don't require a PLT entry,
+// i.e. are in the lower 64KB of ROM; this saves space.
+bool PltSection::updateAllocSize() {
+  if(config->emachine != EM_RL78)
+    return false;
+  SmallVector<const Symbol *> tmpEntries;
+  for (const Symbol *sym : entries) {
+    //dbgs() << "Checking address for:" << sym->getName() << "=" << sym->getVA() << "\n";
+    bool skip = !(sym->getVA() >> 16);
+    if (!skip)
+      for (const Symbol *symbol : tmpEntries) {
+        if ((sym->getVA() == symbol->getVA()) && 
+            (sym->getName() == symbol->getName()))
+          skip = true;
+      }
+    if (!skip) {       
+      symAux[const_cast<Symbol *>(sym)->auxIdx].pltIdx = tmpEntries.size();
+      tmpEntries.push_back(sym);
+      //dbgs() << "Pushing:" << sym->getName() << "\n";
+    }
+    else
+      symAux[const_cast<Symbol *>(sym)->auxIdx].pltIdx = -1;
+  }
+  if(entries.size() == tmpEntries.size())
+    return false;
+  entries.swap(tmpEntries);
+  return true;
 }
 
 bool PltSection::isNeeded() const {

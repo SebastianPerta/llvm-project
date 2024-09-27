@@ -245,19 +245,19 @@ static __inline fp_t fromRep(rep_t x) {
   return rep.f;
 }
 
-static __inline int normalize(rep_t *significand) {
-  const int shift = rep_clz(*significand) - rep_clz(implicitBit);
+static __inline si_int normalize(rep_t *significand) {
+  const si_int shift = rep_clz(*significand) - rep_clz(implicitBit);
   *significand <<= shift;
   return 1 - shift;
 }
 
-static __inline void wideLeftShift(rep_t *hi, rep_t *lo, int count) {
+static __inline void wideLeftShift(rep_t *hi, rep_t *lo, si_int count) {
   *hi = *hi << count | *lo >> (typeWidth - count);
   *lo = *lo << count;
 }
 
 static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
-                                              unsigned int count) {
+                                              su_int count) {
   if (count < typeWidth) {
     const bool sticky = (*lo << (typeWidth - count)) != 0;
     *lo = *hi << (typeWidth - count) | *lo >> count | sticky;
@@ -279,7 +279,7 @@ static __inline void wideRightShiftWithSticky(rep_t *hi, rep_t *lo,
 // the __compiler_rt prefix.
 static __inline fp_t __compiler_rt_logbX(fp_t x) {
   rep_t rep = toRep(x);
-  int exp = (rep & exponentMask) >> significandBits;
+  si_int exp = (rep & exponentMask) >> significandBits;
 
   // Abnormal cases:
   // 1) +/- inf returns +inf; NaN returns NaN
@@ -301,7 +301,7 @@ static __inline fp_t __compiler_rt_logbX(fp_t x) {
   } else {
     // Subnormal number; normalize and repeat
     rep &= absMask;
-    const int shift = 1 - normalize(&rep);
+    const si_int shift = 1 - normalize(&rep);
     exp = (rep & exponentMask) >> significandBits;
     return exp - exponentBias - shift; // Unbias exponent
   }
@@ -309,9 +309,9 @@ static __inline fp_t __compiler_rt_logbX(fp_t x) {
 
 // Avoid using scalbn from libm. Unlike libc/libm scalbn, this function never
 // sets errno on underflow/overflow.
-static __inline fp_t __compiler_rt_scalbnX(fp_t x, int y) {
+static __inline fp_t __compiler_rt_scalbnX(fp_t x, si_int y) {
   const rep_t rep = toRep(x);
-  int exp = (rep & exponentMask) >> significandBits;
+  si_int exp = (rep & exponentMask) >> significandBits;
 
   if (x == 0.0 || exp == maxExponent)
     return x; // +/- 0.0, NaN, or inf: return x
@@ -362,7 +362,7 @@ static __inline fp_t __compiler_rt_fmaxX(fp_t x, fp_t y) {
 static __inline fp_t __compiler_rt_logbf(fp_t x) {
   return __compiler_rt_logbX(x);
 }
-static __inline fp_t __compiler_rt_scalbnf(fp_t x, int y) {
+static __inline fp_t __compiler_rt_scalbnf(fp_t x, si_int y) {
   return __compiler_rt_scalbnX(x, y);
 }
 static __inline fp_t __compiler_rt_fmaxf(fp_t x, fp_t y) {
@@ -380,7 +380,7 @@ static __inline fp_t __compiler_rt_fmaxf(fp_t x, fp_t y) {
 static __inline fp_t __compiler_rt_logb(fp_t x) {
   return __compiler_rt_logbX(x);
 }
-static __inline fp_t __compiler_rt_scalbn(fp_t x, int y) {
+static __inline fp_t __compiler_rt_scalbn(fp_t x, si_int y) {
   return __compiler_rt_scalbnX(x, y);
 }
 static __inline fp_t __compiler_rt_fmax(fp_t x, fp_t y) {
@@ -399,7 +399,7 @@ static __inline fp_t __compiler_rt_fmax(fp_t x, fp_t y) {
 static __inline fp_t __compiler_rt_logbl(fp_t x) {
   return __compiler_rt_logbX(x);
 }
-static __inline fp_t __compiler_rt_scalbnl(fp_t x, int y) {
+static __inline fp_t __compiler_rt_scalbnl(fp_t x, si_int y) {
   return __compiler_rt_scalbnX(x, y);
 }
 static __inline fp_t __compiler_rt_fmaxl(fp_t x, fp_t y) {

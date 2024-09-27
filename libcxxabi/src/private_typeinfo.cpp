@@ -642,7 +642,7 @@ __dynamic_cast(const void *static_ptr, const __class_type_info *static_type,
         *(reinterpret_cast<const __class_type_info* const*>(ptr_to_ti_proxy));
 #else
     void **vtable = *static_cast<void ** const *>(static_ptr);
-    ptrdiff_t offset_to_derived = reinterpret_cast<ptrdiff_t>(vtable[-2]);
+    ptrdiff_t offset_to_derived = static_cast<ptrdiff_t>(reinterpret_cast<intptr_t>(vtable[-2]));
     const void* dynamic_ptr = static_cast<const char*>(static_ptr) + offset_to_derived;
     const __class_type_info* dynamic_type = static_cast<const __class_type_info*>(vtable[-1]);
 #endif

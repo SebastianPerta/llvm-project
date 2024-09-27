@@ -48,6 +48,9 @@ static const unsigned NVPTXAddrSpaceMap[] = {
     // Wasm address space values for this target are dummy values,
     // as it is only enabled for Wasm targets.
     20, // wasm_funcref
+    0, // __near
+    0, // __far_data
+    0, // __far_code
 };
 
 /// The DWARF address class. Taken from

@@ -228,7 +228,7 @@ _LIBCPP_HIDE_FROM_ABI inline constexpr uint32_t __create_type_mask(__type __t) {
   if (__shift > 31)
     std::__throw_format_error("The type does not fit in the mask");
 
-  return 1 << __shift;
+  return (uint32_t)1 << __shift;
 }
 
 inline constexpr uint32_t __type_mask_integer =
@@ -321,10 +321,15 @@ struct __parsed_specifications {
 
 // Validate the struct is small and cheap to copy since the struct is passed by
 // value in formatting functions.
+#ifndef __RL78__
+// TODO: revisit these asserts.
 static_assert(sizeof(__parsed_specifications<char>) == 16);
+#endif
 static_assert(is_trivially_copyable_v<__parsed_specifications<char>>);
 #  ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
+#ifndef __RL78__
 static_assert(sizeof(__parsed_specifications<wchar_t>) == 16);
+#endif
 static_assert(is_trivially_copyable_v<__parsed_specifications<wchar_t>>);
 #  endif
 
@@ -876,10 +881,13 @@ private:
 };
 
 // Validates whether the reserved bitfields don't change the size.
+#ifndef __RL78__
+// TODO: revisit these asserts.
 static_assert(sizeof(__parser<char>) == 16);
 #  ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 static_assert(sizeof(__parser<wchar_t>) == 16);
 #  endif
+#endif
 
 _LIBCPP_HIDE_FROM_ABI constexpr void __process_display_type_string(__format_spec::__type __type) {
   switch (__type) {

@@ -73,6 +73,12 @@ __asm__(".pushsection .init,\"ax\",@progbits\n\t"
 __asm__(".pushsection .init,\"ax\",@progbits\n\t"
         "call __do_init\n\t"
         ".popsection");
+#elif defined(__RL78__)	
+__asm__("	.global	__do_init \n\t"
+	".type	__do_init,@function");
+__asm__(".pushsection .init,\"ax\",@progbits\n\t"
+    "call  !!___do_init\n\t"
+    ".popsection");
 #else
 #error "crtbegin without .init_fini array unimplemented for this architecture"
 #endif // CRT_HAS_INITFINI_ARRAY
@@ -130,6 +136,12 @@ __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
 __asm__(".pushsection .fini,\"ax\",@progbits\n\t"
         "call __do_fini\n\t"
         ".popsection");
+#elif defined(__RL78__)	
+__asm__("	.global	__do_fini \n\t"
+       ".type	__do_fini,@function");
+__asm__(".pushsection .fini,\"ax\",@progbits\n\t"
+    "call !!___do_fini\n\t"
+    ".popsection");
 #else
 #error "crtbegin without .init_fini array unimplemented for this architecture"
 #endif  // CRT_HAS_INIT_FINI_ARRAY

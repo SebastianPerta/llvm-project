@@ -44,9 +44,15 @@ struct CodeGenTypeCache {
   /// char
   llvm::IntegerType *CharTy;
 
+  // RL78: intptr_t may be a different integer type than size_t / ptrdiff_t
+  //   (e.g. when -mfar-data, intptr_t is size 4, the other two are size 2)
+  // FIXME: could we use a predefined macro here for this / somehow make
+  //   this change only for RL78?
+  llvm::IntegerType *IntPtrTy;
+
   /// intptr_t, size_t, and ptrdiff_t, which we assume are the same size.
   union {
-    llvm::IntegerType *IntPtrTy;
+    //llvm::IntegerType *IntPtrTy;
     llvm::IntegerType *SizeTy;
     llvm::IntegerType *PtrDiffTy;
   };

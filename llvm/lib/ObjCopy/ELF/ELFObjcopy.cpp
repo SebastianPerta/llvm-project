@@ -167,6 +167,10 @@ static std::unique_ptr<Writer> createWriter(const CommonConfig &Config,
     return std::make_unique<BinaryWriter>(Obj, Out);
   case FileFormat::IHex:
     return std::make_unique<IHexWriter>(Obj, Out);
+  case FileFormat::SRec:
+    return std::make_unique<SRecWriter>(Config.OutputFilename, Obj, Out, false);
+case FileFormat::SymbolSRec:
+    return std::make_unique<SRecWriter>(Config.OutputFilename, Obj, Out, true);
   default:
     return createELFWriter(Config, Obj, Out, OutputElfType);
   }

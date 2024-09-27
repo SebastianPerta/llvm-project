@@ -78,6 +78,11 @@ if(LLVM_ENABLE_ZLIB)
   find_package(ZLIB)
 endif()
 
+set(LLVM_ENABLE_ICONV @LLVM_ENABLE_ICONV@)
+if(LLVM_ENABLE_ICONV)
+  find_package(Iconv)
+endif()
+
 set(LLVM_ENABLE_ZSTD @LLVM_ENABLE_ZSTD@)
 if(LLVM_ENABLE_ZSTD)
   find_package(zstd)

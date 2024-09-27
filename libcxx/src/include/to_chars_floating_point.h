@@ -60,11 +60,11 @@ struct _Floating_type_traits<float> {
 
     using _Uint_type = uint32_t;
 
-    static constexpr uint32_t _Exponent_mask             = (1u << _Exponent_bits) - 1;
-    static constexpr uint32_t _Normal_mantissa_mask      = (1u << _Mantissa_bits) - 1;
-    static constexpr uint32_t _Denormal_mantissa_mask    = (1u << (_Mantissa_bits - 1)) - 1;
-    static constexpr uint32_t _Special_nan_mantissa_mask = 1u << (_Mantissa_bits - 2);
-    static constexpr uint32_t _Shifted_sign_mask         = 1u << _Sign_shift;
+    static constexpr uint32_t _Exponent_mask             = (uint32_t(1) << _Exponent_bits) - 1;
+    static constexpr uint32_t _Normal_mantissa_mask      = (uint32_t(1) << _Mantissa_bits) - 1;
+    static constexpr uint32_t _Denormal_mantissa_mask    = (uint32_t(1) << (_Mantissa_bits - 1)) - 1;
+    static constexpr uint32_t _Special_nan_mantissa_mask = uint32_t(1) << (_Mantissa_bits - 2);
+    static constexpr uint32_t _Shifted_sign_mask         = uint32_t(1) << _Sign_shift;
     static constexpr uint32_t _Shifted_exponent_mask     = _Exponent_mask << _Exponent_shift;
 };
 
@@ -691,6 +691,12 @@ int main() {
 }
 #endif // 0
 
+#ifdef __RL78__
+#define __rl78_far __far
+#else
+#define __rl78_far
+#endif
+
 template <class _Floating>
 struct _General_precision_tables;
 
@@ -698,7 +704,7 @@ template <>
 struct _General_precision_tables<float> {
     static constexpr int _Max_special_P = 7;
 
-    static constexpr uint32_t _Special_X_table[63] = {0x38C73ABCu, 0x3A79096Bu, 0x3C1BA5E3u, 0x3DC28F5Cu, 0x3F733333u,
+    static constexpr uint32_t __rl78_far _Special_X_table[63] = {0x38C73ABCu, 0x3A79096Bu, 0x3C1BA5E3u, 0x3DC28F5Cu, 0x3F733333u,
         0x4117FFFFu, 0x38D0AAA7u, 0x3A826AA8u, 0x3C230553u, 0x3DCBC6A7u, 0x3F7EB851u, 0x411F3333u, 0x42C6FFFFu,
         0x38D19C3Fu, 0x3A8301A7u, 0x3C23C211u, 0x3DCCB295u, 0x3F7FDF3Bu, 0x411FEB85u, 0x42C7E666u, 0x4479DFFFu,
         0x38D1B468u, 0x3A8310C1u, 0x3C23D4F1u, 0x3DCCCA2Du, 0x3F7FFCB9u, 0x411FFDF3u, 0x42C7FD70u, 0x4479FCCCu,
@@ -710,7 +716,7 @@ struct _General_precision_tables<float> {
 
     static constexpr int _Max_P = 39;
 
-    static constexpr uint32_t _Ordinary_X_table[44] = {0x38D1B717u, 0x3A83126Eu, 0x3C23D70Au, 0x3DCCCCCCu, 0x3F7FFFFFu,
+    static constexpr uint32_t __rl78_far _Ordinary_X_table[44] = {0x38D1B717u, 0x3A83126Eu, 0x3C23D70Au, 0x3DCCCCCCu, 0x3F7FFFFFu,
         0x411FFFFFu, 0x42C7FFFFu, 0x4479FFFFu, 0x461C3FFFu, 0x47C34FFFu, 0x497423FFu, 0x4B18967Fu, 0x4CBEBC1Fu,
         0x4E6E6B27u, 0x501502F8u, 0x51BA43B7u, 0x5368D4A5u, 0x551184E7u, 0x56B5E620u, 0x58635FA9u, 0x5A0E1BC9u,
         0x5BB1A2BCu, 0x5D5E0B6Bu, 0x5F0AC723u, 0x60AD78EBu, 0x6258D726u, 0x64078678u, 0x65A96816u, 0x6753C21Bu,
@@ -722,7 +728,7 @@ template <>
 struct _General_precision_tables<double> {
     static constexpr int _Max_special_P = 15;
 
-    static constexpr uint64_t _Special_X_table[195] = {0x3F18E757928E0C9Du, 0x3F4F212D77318FC5u, 0x3F8374BC6A7EF9DBu,
+    static constexpr uint64_t __rl78_far _Special_X_table[195] = {0x3F18E757928E0C9Du, 0x3F4F212D77318FC5u, 0x3F8374BC6A7EF9DBu,
         0x3FB851EB851EB851u, 0x3FEE666666666666u, 0x4022FFFFFFFFFFFFu, 0x3F1A1554FBDAD751u, 0x3F504D551D68C692u,
         0x3F8460AA64C2F837u, 0x3FB978D4FDF3B645u, 0x3FEFD70A3D70A3D7u, 0x4023E66666666666u, 0x4058DFFFFFFFFFFFu,
         0x3F1A3387ECC8EB96u, 0x3F506034F3FD933Eu, 0x3F84784230FCF80Du, 0x3FB99652BD3C3611u, 0x3FEFFBE76C8B4395u,
@@ -765,7 +771,7 @@ struct _General_precision_tables<double> {
 
     static constexpr int _Max_P = 309;
 
-    static constexpr uint64_t _Ordinary_X_table[314] = {0x3F1A36E2EB1C432Cu, 0x3F50624DD2F1A9FBu, 0x3F847AE147AE147Au,
+    static constexpr uint64_t __rl78_far _Ordinary_X_table[314] = {0x3F1A36E2EB1C432Cu, 0x3F50624DD2F1A9FBu, 0x3F847AE147AE147Au,
         0x3FB9999999999999u, 0x3FEFFFFFFFFFFFFFu, 0x4023FFFFFFFFFFFFu, 0x4058FFFFFFFFFFFFu, 0x408F3FFFFFFFFFFFu,
         0x40C387FFFFFFFFFFu, 0x40F869FFFFFFFFFFu, 0x412E847FFFFFFFFFu, 0x416312CFFFFFFFFFu, 0x4197D783FFFFFFFFu,
         0x41CDCD64FFFFFFFFu, 0x4202A05F1FFFFFFFu, 0x42374876E7FFFFFFu, 0x426D1A94A1FFFFFFu, 0x42A2309CE53FFFFFu,
@@ -882,8 +888,8 @@ to_chars_result _Floating_to_chars_general_precision(
 
     using _Tables = _General_precision_tables<_Floating>;
 
-    const _Uint_type* _Table_begin;
-    const _Uint_type* _Table_end;
+    const _Uint_type __rl78_far* _Table_begin;
+    const _Uint_type __rl78_far* _Table_end;
 
     if (_Precision <= _Tables::_Max_special_P) {
         _Table_begin = _Tables::_Special_X_table + (_Precision - 1) * (_Precision + 10) / 2;
@@ -895,7 +901,7 @@ to_chars_result _Floating_to_chars_general_precision(
 
     // Profiling indicates that linear search is faster than binary search for small tables.
     // Performance note: lambda captures may have a small performance cost.
-    const _Uint_type* const _Table_lower_bound = [=] {
+    const _Uint_type __rl78_far* const _Table_lower_bound = [=] {
         if constexpr (!_IsSame<_Floating, float>::value) {
             if (_Precision > 155) { // threshold determined via profiling
                 return _VSTD::lower_bound(_Table_begin, _Table_end, _Uint_value, less{});
@@ -989,7 +995,7 @@ enum class _Floating_to_chars_overload { _Plain, _Format_only, _Format_precision
 template <_Floating_to_chars_overload _Overload, class _Floating>
 [[nodiscard]] _LIBCPP_HIDE_FROM_ABI
 to_chars_result _Floating_to_chars(
-    char* _First, char* const _Last, _Floating _Value, const chars_format _Fmt, const int _Precision) noexcept {
+    char* _First, char* const _Last, _Floating _Value, const chars_format _Fmt, const long int _Precision) noexcept {
 
     if constexpr (_Overload == _Floating_to_chars_overload::_Plain) {
         _LIBCPP_ASSERT_UNCATEGORIZED(_Fmt == chars_format{}, ""); // plain overload must pass chars_format{} internally

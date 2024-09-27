@@ -87,6 +87,11 @@ if(LLVM_WITH_Z3)
   set(system_libs ${system_libs} ${Z3_LIBRARIES})
 endif()
 
+# Link iconv library if it is an external library.
+if(LLVM_ENABLE_ICONV AND NOT Iconv_IS_BUILT_IN)
+  set(system_libs ${system_libs} ${Iconv_LIBRARIES})
+endif()
+
 # Override the C runtime allocator on Windows and embed it into LLVM tools & libraries
 if(LLVM_INTEGRATED_CRT_ALLOC)
   if (NOT CMAKE_MSVC_RUNTIME_LIBRARY OR CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL$")
@@ -140,6 +145,7 @@ add_llvm_component_library(LLVMSupport
   CachePruning.cpp
   Caching.cpp
   circular_raw_ostream.cpp
+  CharSet.cpp
   Chrono.cpp
   COM.cpp
   CodeGenCoverage.cpp
@@ -328,6 +334,14 @@ if(LLVM_INTEGRATED_CRT_ALLOC)
       set_property(TARGET LLVMSupport PROPERTY COMPILE_FLAGS "-mcx16")
     endif()
   endif()
+endif()
+
+# Add include dir for iconv library if it is an external library.
+if(LLVM_ENABLE_ICONV AND NOT Iconv_IS_BUILT_IN)
+  target_include_directories(LLVMSupport SYSTEM
+    PRIVATE
+    ${Iconv_INCLUDE_DIRS}
+    )
 endif()
 
 if(LLVM_WITH_Z3)

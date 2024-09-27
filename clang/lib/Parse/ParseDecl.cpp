@@ -507,6 +507,155 @@ unsigned Parser::ParseAttributeArgsCommon(
   return static_cast<unsigned>(ArgExprs.size() + !TheParsedType.get().isNull());
 }
 
+void Parser::ParseRL78InterruptAttribute(IdentifierInfo &AttrName,
+                                        SourceLocation AttrNameLoc,
+                                        ParsedAttributes &Attrs,
+                                        SourceLocation *EndLoc,
+                                        IdentifierInfo *ScopeName,
+                                        SourceLocation ScopeLoc,
+                                        ParsedAttr::Form Form) {
+    unsigned Result = 0;
+	std::list<unsigned> ExtraDataVects;
+    // Opening '('.
+    BalancedDelimiterTracker T(*this, tok::l_paren);
+    if (T.consumeOpen()) {
+      Diag(Tok, diag::err_expected) << tok::l_paren;
+      return;
+    }
+	bool bankSpecified = false;
+	bool enabledSpecified = false;
+    do {
+    // The token must be an identifier: one of 3 choices (vect, bank, enable).
+    if(Tok.isNot(tok::identifier)) {
+       PP.Diag(Tok.getLocation(), diag::err_expected) << "identifier (vect, bank or enable) or no parentheses";
+       SkipUntil(tok::r_paren, StopAtSemi);
+       return;
+    }
+    const IdentifierInfo *II = Tok.getIdentifierInfo();
+    // Consume '='.
+    PP.Lex(Tok);
+    if(Tok.isNot(tok::equal)) {
+       PP.Diag(Tok.getLocation(), diag::err_expected) << "equal (=) token";
+       SkipUntil(tok::r_paren, StopAtSemi);
+       return;
+    }
+    // Finally read the specification.
+    PP.Lex(Tok);
+    // vect specification is only available for interrupt.
+    if((AttrName.getName().compare("interrupt") == 0) && 
+      (II->getName().compare("vect") == 0)) {
+      if(Tok.isNot(tok::numeric_constant)) {
+        PP.Diag(Tok.getLocation(), diag::err_expected) << "a numeric constant";
+        SkipUntil(tok::r_paren, StopAtSemi);
+        return;
+      }
+      uint64_t Value;
+      if(!PP.parseSimpleIntegerLiteral(Tok, Value)) {
+        PP.Diag(Tok.getLocation(), diag::err_expected) << "a parsable integer literal";
+        SkipUntil(tok::r_paren, StopAtSemi);
+        return;
+      }
+      // Only an even value within the range from 0x0 to 0x7c can be specified.
+      if((Value > 0x7C) || (Value & 0x1)) {
+        PP.Diag(Tok.getLocation(), diag::err_expected) << "an even value between 0x0 and 0x7C";
+        SkipUntil(tok::r_paren, StopAtSemi);
+        return;
+      }
+	  if (std::find(ExtraDataVects.begin(), ExtraDataVects.end(), (unsigned)Value & 0xFF) != ExtraDataVects.end()) {
+		  PP.Diag(Tok.getLocation(), diag::err_expected) << "unique values and not duplicates";
+	  }
+	  else {
+		  ExtraDataVects.push_back((unsigned)Value & 0xFF);
+	  }
+	}
+	else if ((AttrName.getName().compare("brk_interrupt") == 0) &&
+		(II->getName().compare("vect") == 0)) {
+        Diag(Tok, diag::err_pragma_argument) <<"vect"<<"brk_interrupt";
+		SkipUntil(tok::r_paren, StopAtSemi);
+		return;
+	}
+    else if(II->getName().compare("bank") == 0) {
+      if (bankSpecified == true) {
+        PP.Diag(Tok, diag::err_expected) << "only one specification of bank";
+        return;
+      } else  bankSpecified = true;
+
+      Result |= 0x1;
+
+      if (Tok.getIdentifierInfo() != NULL) {
+        const StringRef &bank = Tok.getIdentifierInfo()->getName();
+        if(bank.compare("RB0") == 0)
+          Result |= 0x0;
+        else if(bank.compare("RB1") == 0)
+          Result |= 0x1 << 1;
+        else if(bank.compare("RB2") == 0)
+          Result |= 0x2 << 1;
+        else if(bank.compare("RB3") == 0)
+          Result |= 0x3 << 1;
+        else {
+          Diag(Tok, diag::err_expected) << "one of RB0, RB1, RB2 or RB3";
+          SkipUntil(tok::r_paren, StopAtSemi);
+          return;
+        }
+      PP.Lex(Tok);
+      }
+    }
+    else if(II->getName().compare("enable") == 0) {
+	  if (enabledSpecified == true) {
+        PP.Diag(Tok, diag::err_expected) << "only one specification of enable";
+        return;
+	  } else enabledSpecified = true;
+    if (Tok.getIdentifierInfo() != NULL) {
+      const StringRef &enable = Tok.getIdentifierInfo()->getName();
+      if(enable.compare("false") == 0)
+        Result |= 0x0;
+      else if(enable.compare("true") == 0)
+        Result |= 0x1 << 3;
+      else {
+        Diag(Tok, diag::err_expected) << "true or false";
+        SkipUntil(tok::r_paren, StopAtSemi);
+        return;
+      }
+      PP.Lex(Tok);
+    }
+    }
+    else {
+       Diag(Tok.getLocation(), diag::err_pragma_invalid_keyword) << false << false;
+       SkipUntil(tok::r_paren, StopAtSemi);
+       return;
+    }
+    // ')' means end of specification.
+    if(Tok.is(tok::r_paren))
+      break;
+    if(Tok.isNot(tok::comma)) {
+      //TODO: change error meesage
+      PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol);
+      SkipUntil(tok::r_paren, StopAtSemi);
+      return;
+    }
+    // Consume ','
+    PP.Lex(Tok);
+  } while (1);
+    if (T.consumeClose()) {
+      //diag
+    return;
+	}
+	
+    ArgsVector ArgExprs;
+    ExprResult ArgExpr(Actions.ActOnIntegerConstant(T.getCloseLocation(), Result));
+	ArgExprs.push_back(ArgExpr.get());
+	std::list<unsigned>::iterator it;
+	for (it = ExtraDataVects.begin(); it != ExtraDataVects.end(); ++it) {
+		ExprResult ArgExpr(Actions.ActOnIntegerConstant(T.getCloseLocation(), *it));
+		ArgExprs.push_back(ArgExpr.get());
+	}
+
+    Attrs.addNew(&AttrName, SourceRange(AttrNameLoc, T.getCloseLocation()), ScopeName, ScopeLoc,
+                 ArgExprs.data(), ArgExprs.size(), Form);
+	
+	return;
+}
+
 /// Parse the arguments to a parameterized GNU attribute or
 /// a C++11 attribute in "gnu" namespace.
 void Parser::ParseGNUAttributeArgs(
@@ -542,6 +691,12 @@ void Parser::ParseGNUAttributeArgs(
   } else if (attributeIsTypeArgAttr(*AttrName)) {
     ParseAttributeWithTypeArg(*AttrName, AttrNameLoc, Attrs, ScopeName,
                               ScopeLoc, Form);
+    return;
+  } else if ((!Tok.is(tok::r_paren)) && 
+      ((normalizeAttrName(AttrName->getName()) == "interrupt") || 
+      (normalizeAttrName(AttrName->getName()) == "brk_interrupt"))/*and triple*/) {
+    ParseRL78InterruptAttribute (*AttrName, AttrNameLoc, Attrs, EndLoc,
+                                     ScopeName, ScopeLoc, Form);
     return;
   }
 
@@ -3864,7 +4019,17 @@ void Parser::ParseDeclarationSpecifiers(
       AnnotateTemplateIdTokenAsType(SS, AllowImplicitTypename);
       continue;
     }
-
+    case tok::kw___near:
+    case tok::kw___far:
+    case tok::kw___saddr:
+    case tok::kw___callt: {
+      IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+      tok::TokenKind Kind = Tok.getKind();
+      SourceLocation AttrNameLoc = ConsumeToken();
+      DS.getAttributes().addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc,
+                                nullptr, 0, Kind);
+      continue;
+    }
     // Attributes support.
     case tok::kw___attribute:
     case tok::kw___declspec:
@@ -5475,7 +5640,9 @@ bool Parser::isTypeSpecifierQualifier() {
 
   case tok::kw_private:
     return getLangOpts().OpenCL;
-
+  case tok::kw___far:
+  case tok::kw___near:
+    return getLangOpts().RenesasRL78;
   // C11 _Atomic
   case tok::kw__Atomic:
     return true;
@@ -5747,6 +5914,9 @@ bool Parser::isDeclarationSpecifier(
 
   case tok::kw_private:
     return getLangOpts().OpenCL;
+  case tok::kw___far:
+  case tok::kw___near:
+    return getLangOpts().RenesasRL78;
   }
 }
 
@@ -5960,7 +6130,15 @@ void Parser::ParseTypeQualifierListOpt(
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_atomic, Loc, PrevSpec, DiagID,
                                  getLangOpts());
       break;
-
+    case tok::kw___near:
+    case tok::kw___far: {
+      IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+      tok::TokenKind Kind = Tok.getKind();
+      SourceLocation AttrNameLoc = ConsumeToken();
+      DS.getAttributes().addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc,
+                                nullptr, 0, Kind);
+      continue;
+    }
     // OpenCL qualifiers:
     case tok::kw_private:
       if (!getLangOpts().OpenCL)
@@ -6818,6 +6996,15 @@ void Parser::ParseParenDeclarator(Declarator &D) {
     // We require that the argument list (if this is a non-grouping paren) be
     // present even if the attribute list was empty.
     RequiresArg = true;
+  }
+
+  // In case of Renesas RL78 function pointers can be qualified
+  // by address-space qualifiers, i.e. for example we can have int (__far *fp)();
+  if(Tok.is(tok::kw___near) || Tok.is(tok::kw___far)) {
+    IdentifierInfo *AttrName = Tok.getIdentifierInfo();
+    tok::TokenKind Kind = Tok.getKind();
+    SourceLocation AttrNameLoc = ConsumeToken();
+    attrs.addNew(AttrName, AttrNameLoc, nullptr, AttrNameLoc, nullptr, 0, Kind);
   }
 
   // Eat any Microsoft extensions.

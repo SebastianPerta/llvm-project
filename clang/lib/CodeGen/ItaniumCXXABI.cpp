@@ -596,7 +596,11 @@ llvm::Type *
 ItaniumCXXABI::ConvertMemberPointerType(const MemberPointerType *MPT) {
   if (MPT->isMemberDataPointer())
     return CGM.PtrDiffTy;
-  return llvm::StructType::get(CGM.PtrDiffTy, CGM.PtrDiffTy);
+  // RL78: the 'ptr' field of 'memptr' is 32-bit for -mfar-code and -mfar-data
+  const auto &langOpts = CGM.getContext().getLangOpts();
+  auto PtrDiffTy = langOpts.RenesasRL78CodeModel || langOpts.RenesasRL78DataModel
+                       ? CGM.Int32Ty : CGM.PtrDiffTy;
+  return llvm::StructType::get(/*CGM.*/PtrDiffTy, CGM.PtrDiffTy);
 }
 
 /// In the Itanium and ARM ABIs, method pointers have the form:
@@ -630,7 +634,12 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   auto *RD =
       cast<CXXRecordDecl>(MPT->getClass()->castAs<RecordType>()->getDecl());
 
-  llvm::Constant *ptrdiff_1 = llvm::ConstantInt::get(CGM.PtrDiffTy, 1);
+  // RL78: the 'ptr' field of 'memptr' is 32-bit for -mfar-code and -mfar-data
+  const auto &langOpts = CGM.getContext().getLangOpts();
+  auto PtrDiffTy = langOpts.RenesasRL78CodeModel || langOpts.RenesasRL78DataModel
+                       ? CGM.Int32Ty : CGM.PtrDiffTy;
+
+  llvm::Constant *ptrdiff_1 = llvm::ConstantInt::get(/*CGM.*/PtrDiffTy, 1);
 
   llvm::BasicBlock *FnVirtual = CGF.createBasicBlock("memptr.virtual");
   llvm::BasicBlock *FnNonVirtual = CGF.createBasicBlock("memptr.nonvirtual");
@@ -682,8 +691,16 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   // On ARM64, to reserve extra space in virtual member function pointers,
   // we only pay attention to the low 32 bits of the offset.
   llvm::Value *VTableOffset = FnAsInt;
-  if (!UseARMMethodPtrABI)
+  if (!UseARMMethodPtrABI) {
+    // RL78: For virtual member function pointers, the 'ptr' field is actually
+    // an offset, so cast it to CGF.PtrDiffTy (16-bit)
+    const auto &langOpts = CGM.getContext().getLangOpts();
+    if (langOpts.RenesasRL78CodeModel || langOpts.RenesasRL78DataModel) {
+      VTableOffset = Builder.CreateTrunc(VTableOffset, CGF.PtrDiffTy);
+      ptrdiff_1 = llvm::ConstantInt::get(CGM.PtrDiffTy, 1);
+    }
     VTableOffset = Builder.CreateSub(VTableOffset, ptrdiff_1);
+  }
   if (Use32BitVTableOffsetABI) {
     VTableOffset = Builder.CreateTrunc(VTableOffset, CGF.Int32Ty);
     VTableOffset = Builder.CreateZExt(VTableOffset, CGM.PtrDiffTy);
@@ -701,6 +718,15 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
       CGM.getCodeGenOpts().WholeProgramVTables &&
       // Don't insert type tests if we are forcing public visibility.
       !CGM.AlwaysHasLTOVisibilityPublic(RD);
+
+  llvm::PointerType *FnPtrTy =
+      CGM.getContext().getLangOpts().RenesasRL78CodeModel
+          ? llvm::PointerType::get(
+                CGF.getLLVMContext(),
+                CGM.getContext().getTargetInfo().getTargetAddressSpace(
+                    LangAS::__far_code))
+          : llvm::PointerType::getUnqual(CGF.getLLVMContext());
+
   llvm::Value *VirtualFn = nullptr;
 
   {
@@ -758,10 +784,14 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
             CGF.getPointerAlign(), "memptr.virtualfn");
       }
     }
-    assert(VirtualFn && "Virtual fuction pointer not created!");
+    assert(VirtualFn && "Virtual function pointer not created!");
     assert((!ShouldEmitCFICheck || !ShouldEmitVFEInfo || !ShouldEmitWPDInfo ||
             CheckResult) &&
            "Check result required but not created!");
+
+    // RL78: the entries in the virtual table are near / default address space
+    if (CGM.getContext().getLangOpts().RenesasRL78CodeModel)
+      VirtualFn = CGF.Builder.CreateAddrSpaceCast(VirtualFn, FnPtrTy);
 
     if (ShouldEmitCFICheck) {
       // If doing CFI, emit the check.
@@ -795,9 +825,9 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
   // In the non-virtual path, the function pointer is actually a
   // function pointer.
   CGF.EmitBlock(FnNonVirtual);
+
   llvm::Value *NonVirtualFn = Builder.CreateIntToPtr(
-      FnAsInt, llvm::PointerType::getUnqual(CGF.getLLVMContext()),
-      "memptr.nonvirtualfn");
+      FnAsInt, FnPtrTy, "memptr.nonvirtualfn");
 
   // Check the function pointer if CFI on member function pointers is enabled.
   if (ShouldEmitCFICheck) {
@@ -838,8 +868,7 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
 
   // We're done.
   CGF.EmitBlock(FnEnd);
-  llvm::PHINode *CalleePtr =
-      Builder.CreatePHI(llvm::PointerType::getUnqual(CGF.getLLVMContext()), 2);
+  llvm::PHINode *CalleePtr = Builder.CreatePHI(FnPtrTy, 2);
   CalleePtr->addIncoming(VirtualFn, FnVirtual);
   CalleePtr->addIncoming(NonVirtualFn, FnNonVirtual);
 
@@ -997,8 +1026,13 @@ ItaniumCXXABI::EmitNullMemberPointer(const MemberPointerType *MPT) {
   if (MPT->isMemberDataPointer())
     return llvm::ConstantInt::get(CGM.PtrDiffTy, -1ULL, /*isSigned=*/true);
 
-  llvm::Constant *Zero = llvm::ConstantInt::get(CGM.PtrDiffTy, 0);
-  llvm::Constant *Values[2] = { Zero, Zero };
+  // RL78: the 'ptr' field of 'memptr' is 32-bit for -mfar-code and -mfar-data
+  const auto &langOpts = CGM.getContext().getLangOpts();
+  auto PtrDiffTy = langOpts.RenesasRL78CodeModel || langOpts.RenesasRL78DataModel
+                       ? CGM.Int32Ty : CGM.PtrDiffTy;
+
+  llvm::Constant *Values[2] = {llvm::ConstantInt::get(/*CGM.*/PtrDiffTy, 0),
+                               llvm::ConstantInt::get(CGM.PtrDiffTy, 0)};
   return llvm::ConstantStruct::getAnon(Values);
 }
 
@@ -1022,6 +1056,18 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
 
   CodeGenTypes &Types = CGM.getTypes();
 
+  // RL78: the 'ptr' field of 'memptr' is 32-bit for -mfar-code and -mfar-data
+  llvm::IntegerType *PtrDiffTy = CGM.PtrDiffTy;
+  llvm::PointerType *RL78FarPtrTy = nullptr;
+
+  const auto &langOpts = CGM.getContext().getLangOpts();
+  if (langOpts.RenesasRL78CodeModel || langOpts.RenesasRL78DataModel) {
+    PtrDiffTy = CGM.Int32Ty;
+    RL78FarPtrTy = llvm::PointerType::get(CGM.getLLVMContext(),
+        CGM.getContext().getTargetInfo().getTargetAddressSpace(
+            langOpts.RenesasRL78DataModel ? LangAS::Default : LangAS::__far_code));
+  }
+
   // Get the function pointer (or index if this is a virtual function).
   llvm::Constant *MemPtr[2];
   if (MD->isVirtual()) {
@@ -1044,7 +1090,7 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
       //   least significant bit of adj then makes exactly the same
       //   discrimination as the least significant bit of ptr does for
       //   Itanium.
-      MemPtr[0] = llvm::ConstantInt::get(CGM.PtrDiffTy, VTableOffset);
+      MemPtr[0] = llvm::ConstantInt::get(/*CGM.*/PtrDiffTy, VTableOffset);
       MemPtr[1] = llvm::ConstantInt::get(CGM.PtrDiffTy,
                                          2 * ThisAdjustment.getQuantity() + 1);
     } else {
@@ -1052,7 +1098,7 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
       //   For a virtual function, [the pointer field] is 1 plus the
       //   virtual table offset (in bytes) of the function,
       //   represented as a ptrdiff_t.
-      MemPtr[0] = llvm::ConstantInt::get(CGM.PtrDiffTy, VTableOffset + 1);
+      MemPtr[0] = llvm::ConstantInt::get(/*CGM.*/PtrDiffTy, VTableOffset + 1);
       MemPtr[1] = llvm::ConstantInt::get(CGM.PtrDiffTy,
                                          ThisAdjustment.getQuantity());
     }
@@ -1066,11 +1112,14 @@ llvm::Constant *ItaniumCXXABI::BuildMemberPointer(const CXXMethodDecl *MD,
     } else {
       // Use an arbitrary non-function type to tell GetAddrOfFunction that the
       // function type is incomplete.
-      Ty = CGM.PtrDiffTy;
+      Ty = /*CGM.*/PtrDiffTy;
     }
     llvm::Constant *addr = CGM.GetAddrOfFunction(MD, Ty);
 
-    MemPtr[0] = llvm::ConstantExpr::getPtrToInt(addr, CGM.PtrDiffTy);
+    if (RL78FarPtrTy)
+      addr = llvm::ConstantExpr::getPointerCast(addr, RL78FarPtrTy);
+
+    MemPtr[0] = llvm::ConstantExpr::getPtrToInt(addr, /*CGM.*/PtrDiffTy);
     MemPtr[1] = llvm::ConstantInt::get(CGM.PtrDiffTy,
                                        (UseARMMethodPtrABI ? 2 : 1) *
                                        ThisAdjustment.getQuantity());
@@ -2659,7 +2708,10 @@ static void emitGlobalDtorWithCXAAtExit(CodeGenFunction &CGF,
 
   // We're assuming that the destructor function is something we can
   // reasonably call with the default CC.
-  llvm::Type *dtorTy = llvm::PointerType::getUnqual(CGF.getLLVMContext());
+  // RL78: -mfar-code implies a different AS
+  unsigned dtorAS = !CGF.getContext().getLangOpts().RenesasRL78CodeModel ? 0 :
+    CGF.getContext().getTargetAddressSpace(LangAS::__far_code);
+  llvm::Type *dtorTy = llvm::PointerType::get(CGF.getLLVMContext(), dtorAS);
 
   // Preserve address space of addr.
   auto AddrAS = addr ? addr->getType()->getPointerAddressSpace() : 0;

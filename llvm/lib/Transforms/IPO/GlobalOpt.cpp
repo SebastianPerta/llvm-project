@@ -1840,6 +1840,11 @@ static void RemovePreallocated(Function *F) {
 
   IRBuilder<> Builder(M->getContext());
 
+  // FIXME: is there a better way to figure it out here if a RL78 target?
+  auto StackPtrTy = Type::getInt8PtrTy(M->getContext(),
+      StringRef(M->getTargetTriple()).startswith("rl78") ?
+      M->getDataLayout().getAllocaAddrSpace() : 0);
+
   // Cannot modify users() while iterating over it, so make a copy.
   SmallVector<User *, 4> PreallocatedCalls(F->users());
   for (User *U : PreallocatedCalls) {
@@ -1873,11 +1878,12 @@ static void RemovePreallocated(Function *F) {
     CB->eraseFromParent();
 
     Builder.SetInsertPoint(PreallocatedSetup);
-    auto *StackSave =
-        Builder.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::stacksave));
+    auto *StackSave = Builder.CreateCall(
+        Intrinsic::getDeclaration(M, Intrinsic::stacksave, StackPtrTy));
 
     Builder.SetInsertPoint(NewCB->getNextNonDebugInstruction());
-    Builder.CreateCall(Intrinsic::getDeclaration(M, Intrinsic::stackrestore),
+    Builder.CreateCall(
+        Intrinsic::getDeclaration(M, Intrinsic::stackrestore, StackPtrTy),
                        StackSave);
 
     // Replace @llvm.call.preallocated.arg() with alloca.

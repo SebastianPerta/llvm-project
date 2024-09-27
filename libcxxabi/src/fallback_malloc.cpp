@@ -107,7 +107,7 @@ heap_offset offset_from_node(const heap_node* ptr) {
 heap_node* getFirstAlignedNodeInHeap() {
   heap_node* node = (heap_node*)heap;
   const size_t alignNBytesAfterBoundary = RequiredAlignment - sizeof(heap_node);
-  size_t boundaryOffset = reinterpret_cast<size_t>(node) % RequiredAlignment;
+  size_t boundaryOffset = static_cast<size_t>(reinterpret_cast<uintptr_t>(node)) % RequiredAlignment;
   size_t requiredOffset = alignNBytesAfterBoundary - boundaryOffset;
   size_t NElemOffset = requiredOffset / sizeof(heap_node);
   return node + NElemOffset;
@@ -142,7 +142,7 @@ void* fallback_malloc(size_t len) {
 
     // Check the invariant that all heap_nodes pointers 'p' are aligned
     // so that 'p + 1' has an alignment of at least RequiredAlignment
-    assert(reinterpret_cast<size_t>(p + 1) % RequiredAlignment == 0);
+    assert(static_cast<size_t>(reinterpret_cast<uintptr_t>(p + 1)) % RequiredAlignment == 0);
 
     // Calculate the number of extra padding elements needed in order
     // to split 'p' and create a properly aligned heap_node from the tail
@@ -163,7 +163,7 @@ void* fallback_malloc(size_t len) {
       q->next_node = 0;
       q->len = static_cast<heap_size>(aligned_nelems);
       void* ptr = q + 1;
-      assert(reinterpret_cast<size_t>(ptr) % RequiredAlignment == 0);
+      assert(static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr)) % RequiredAlignment == 0);
       return ptr;
     }
 
@@ -176,7 +176,7 @@ void* fallback_malloc(size_t len) {
         prev->next_node = p->next_node;
       p->next_node = 0;
       void* ptr = p + 1;
-      assert(reinterpret_cast<size_t>(ptr) % RequiredAlignment == 0);
+      assert(static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr)) % RequiredAlignment == 0);
       return ptr;
     }
   }

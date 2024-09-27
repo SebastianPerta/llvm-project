@@ -36,6 +36,8 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#ifndef __RL78_32BIT_DOUBLES__ // not supported on RL78 unless -m64bit-doubles is specified
+
 // Avoid formatting to keep the changes with the original code minimal.
 // clang-format off
 
@@ -50,6 +52,12 @@
 #include "include/ryu/f2s.h"
 #include "include/ryu/ryu.h"
 
+#ifdef __RL78__
+#define __rl78_far __far
+#else
+#define __rl78_far
+#endif
+
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 inline constexpr int __FLOAT_MANTISSA_BITS = 23;
@@ -57,7 +65,7 @@ inline constexpr int __FLOAT_EXPONENT_BITS = 8;
 inline constexpr int __FLOAT_BIAS = 127;
 
 inline constexpr int __FLOAT_POW5_INV_BITCOUNT = 59;
-inline constexpr uint64_t __FLOAT_POW5_INV_SPLIT[31] = {
+inline constexpr uint64_t __rl78_far __FLOAT_POW5_INV_SPLIT[31] = {
   576460752303423489u, 461168601842738791u, 368934881474191033u, 295147905179352826u,
   472236648286964522u, 377789318629571618u, 302231454903657294u, 483570327845851670u,
   386856262276681336u, 309485009821345069u, 495176015714152110u, 396140812571321688u,
@@ -68,7 +76,7 @@ inline constexpr uint64_t __FLOAT_POW5_INV_SPLIT[31] = {
   570899077082383953u, 456719261665907162u, 365375409332725730u
 };
 inline constexpr int __FLOAT_POW5_BITCOUNT = 61;
-inline constexpr uint64_t __FLOAT_POW5_SPLIT[47] = {
+inline constexpr uint64_t __rl78_far __FLOAT_POW5_SPLIT[47] = {
   1152921504606846976u, 1441151880758558720u, 1801439850948198400u, 2251799813685248000u,
   1407374883553280000u, 1759218604441600000u, 2199023255552000000u, 1374389534720000000u,
   1717986918400000000u, 2147483648000000000u, 1342177280000000000u, 1677721600000000000u,
@@ -108,7 +116,7 @@ inline constexpr uint64_t __FLOAT_POW5_SPLIT[47] = {
   _LIBCPP_ASSERT_UNCATEGORIZED(__value != 0, "");
   _LIBCPP_ASSERT_UNCATEGORIZED(__p < 32, "");
   // __builtin_ctz doesn't appear to be faster here.
-  return (__value & ((1u << __p) - 1)) == 0;
+  return (__value & ((uint32_t(1) << __p) - 1)) == 0;
 }
 
 [[nodiscard]] _LIBCPP_HIDE_FROM_ABI inline uint32_t __mulShift(const uint32_t __m, const uint64_t __factor, const int32_t __shift) {
@@ -162,7 +170,7 @@ struct __floating_decimal_32 {
     __m2 = __ieeeMantissa;
   } else {
     __e2 = static_cast<int32_t>(__ieeeExponent) - __FLOAT_BIAS - __FLOAT_MANTISSA_BITS - 2;
-    __m2 = (1u << __FLOAT_MANTISSA_BITS) | __ieeeMantissa;
+    __m2 = (uint32_t(1) << __FLOAT_MANTISSA_BITS) | __ieeeMantissa;
   }
   const bool __even = (__m2 & 1) == 0;
   const bool __acceptBounds = __even;
@@ -540,7 +548,7 @@ struct __floating_decimal_32 {
       }
 
       if (!_Can_use_ryu) {
-        const uint32_t _Mantissa2 = __ieeeMantissa | (1u << __FLOAT_MANTISSA_BITS); // restore implicit bit
+        const uint32_t _Mantissa2 = __ieeeMantissa | (uint32_t(1) << __FLOAT_MANTISSA_BITS); // restore implicit bit
         const int32_t _Exponent2 = static_cast<int32_t>(__ieeeExponent)
           - __FLOAT_BIAS - __FLOAT_MANTISSA_BITS; // bias and normalization
 
@@ -689,13 +697,13 @@ struct __floating_decimal_32 {
   }
 
   // Decode __bits into mantissa and exponent.
-  const uint32_t __ieeeMantissa = __bits & ((1u << __FLOAT_MANTISSA_BITS) - 1);
+  const uint32_t __ieeeMantissa = __bits & ((uint32_t(1) << __FLOAT_MANTISSA_BITS) - 1);
   const uint32_t __ieeeExponent = __bits >> __FLOAT_MANTISSA_BITS;
 
   // When _Fmt == chars_format::fixed and the floating-point number is a large integer,
   // it's faster to skip Ryu and immediately print the integer exactly.
   if (_Fmt == chars_format::fixed) {
-    const uint32_t _Mantissa2 = __ieeeMantissa | (1u << __FLOAT_MANTISSA_BITS); // restore implicit bit
+    const uint32_t _Mantissa2 = __ieeeMantissa | (uint32_t(1) << __FLOAT_MANTISSA_BITS); // restore implicit bit
     const int32_t _Exponent2 = static_cast<int32_t>(__ieeeExponent)
       - __FLOAT_BIAS - __FLOAT_MANTISSA_BITS; // bias and normalization
 
@@ -714,3 +722,5 @@ struct __floating_decimal_32 {
 _LIBCPP_END_NAMESPACE_STD
 
 // clang-format on
+
+#endif // __RL78_32BIT_DOUBLES__

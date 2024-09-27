@@ -682,6 +682,8 @@ public:
     case tok::tilde:
     case tok::kw_sizeof:
     case tok::kw_alignof:
+    case tok::kw___sectop:
+    case tok::kw___secend:
       return true;
     default:
       return false;
@@ -713,6 +715,8 @@ public:
     case tok::kw_static_assert:
     case tok::kw__Atomic:
     case tok::kw___attribute:
+    case tok::kw___sectop:
+    case tok::kw___secend:
 #define TRANSFORM_TYPE_TRAIT_DEF(_, Trait) case tok::kw___##Trait:
 #include "clang/Basic/TransformTypeTraits.def"
     case tok::kw_requires:

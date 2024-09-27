@@ -20,7 +20,7 @@ static __inline fixint_t __fixint(fp_t a) {
   const rep_t aRep = toRep(a);
   const rep_t aAbs = aRep & absMask;
   const fixint_t sign = aRep & signBit ? -1 : 1;
-  const int exponent = (aAbs >> significandBits) - exponentBias;
+  const si_int exponent = (aAbs >> significandBits) - exponentBias;
   const rep_t significand = (aAbs & significandMask) | implicitBit;
 
   // If exponent is negative, the result is zero.
@@ -28,7 +28,7 @@ static __inline fixint_t __fixint(fp_t a) {
     return 0;
 
   // If the value is too large for the integer type, saturate.
-  if ((unsigned)exponent >= sizeof(fixint_t) * CHAR_BIT)
+  if ((su_int)exponent >= sizeof(fixint_t) * CHAR_BIT)
     return sign == 1 ? fixint_max : fixint_min;
 
   // If 0 <= exponent < significandBits, right shift to get the result.

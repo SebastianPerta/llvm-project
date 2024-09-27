@@ -120,6 +120,18 @@ void AsmToken::dump(raw_ostream &OS) const {
   case AsmToken::PercentTlsldm:      OS << "PercentTlsldm"; break;
   case AsmToken::PercentTprel_Hi:    OS << "PercentTprel_Hi"; break;
   case AsmToken::PercentTprel_Lo:    OS << "PercentTprel_Lo"; break;
+  // RL78 specific tokens.
+  case AsmToken::High:               OS << "High"; break;
+  case AsmToken::Low:                OS << "Low"; break;
+  case AsmToken::HighW:              OS << "HighW"; break;
+  case AsmToken::LowW:               OS << "LowW"; break;
+  case AsmToken::MirHW:              OS << "MirHW"; break;
+  case AsmToken::MirLW:              OS << "MirLW"; break;
+  case AsmToken::SMRLW:              OS << "SMRLW"; break;
+  case AsmToken::StartOf:            OS << "StartOf"; break;
+  case AsmToken::SizeOf:             OS << "SizeOf"; break;
+  case AsmToken::DataPos:            OS << "DataPos"; break;
+  case AsmToken::BitPos:             OS << "BitPos"; break;
   }
 
   // Print the token string.

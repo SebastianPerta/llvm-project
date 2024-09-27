@@ -697,10 +697,10 @@ class MSBuiltin<string name> {
 //===--------------- Variable Argument Handling Intrinsics ----------------===//
 //
 
-def int_vastart : DefaultAttrsIntrinsic<[], [llvm_ptr_ty], [], "llvm.va_start">;
-def int_vacopy  : DefaultAttrsIntrinsic<[], [llvm_ptr_ty, llvm_ptr_ty], [],
+def int_vastart : DefaultAttrsIntrinsic<[], [llvm_anyptr_ty], [], "llvm.va_start">;
+def int_vacopy  : DefaultAttrsIntrinsic<[], [llvm_anyptr_ty, LLVMMatchType<0>], [],
                             "llvm.va_copy">;
-def int_vaend   : DefaultAttrsIntrinsic<[], [llvm_ptr_ty], [], "llvm.va_end">;
+def int_vaend   : DefaultAttrsIntrinsic<[], [llvm_anyptr_ty], [], "llvm.va_end">;
 
 //===------------------- Garbage Collection Intrinsics --------------------===//
 //
@@ -796,10 +796,13 @@ def int_swift_async_context_addr : Intrinsic<[llvm_ptr_ty], [], []>;
 
 //===--------------------- Code Generator Intrinsics ----------------------===//
 //
-def int_returnaddress : DefaultAttrsIntrinsic<[llvm_ptr_ty], [llvm_i32_ty],
+// RL78: the type of the ret value is llvm_anyptr_ty as it refers to a code address;
+// the arg type is llvm_i16_ty as it corresponds to the target int size
+// FIXME: can we make / use smth like a llvm_int_ty i.e. a target-specific integer type?
+def int_returnaddress : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [llvm_i16_ty],
                                   [IntrNoMem, ImmArg<ArgIndex<0>>]>;
 def int_addressofreturnaddress : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [], [IntrNoMem]>;
-def int_frameaddress : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [llvm_i32_ty],
+def int_frameaddress : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [llvm_i16_ty], // RL78: idem
                                  [IntrNoMem, ImmArg<ArgIndex<0>>]>;
 def int_sponentry  : DefaultAttrsIntrinsic<[llvm_anyptr_ty], [], [IntrNoMem]>;
 def int_read_register  : DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_metadata_ty],
@@ -841,9 +844,9 @@ def int_seh_scope_end : Intrinsic<[], [], [IntrNoMem]>;
 
 // Note: we treat stacksave/stackrestore as writemem because we don't otherwise
 // model their dependencies on allocas.
-def int_stacksave     : DefaultAttrsIntrinsic<[llvm_ptr_ty]>,
+def int_stacksave     : DefaultAttrsIntrinsic<[llvm_anyptr_ty]>,
                         ClangBuiltin<"__builtin_stack_save">;
-def int_stackrestore  : DefaultAttrsIntrinsic<[], [llvm_ptr_ty]>,
+def int_stackrestore  : DefaultAttrsIntrinsic<[], [llvm_anyptr_ty]>,
                         ClangBuiltin<"__builtin_stack_restore">;
 
 def int_get_dynamic_area_offset : DefaultAttrsIntrinsic<[llvm_anyint_ty]>;
@@ -2538,5 +2541,5 @@ include "llvm/IR/IntrinsicsSPIRV.td"
 include "llvm/IR/IntrinsicsVE.td"
 include "llvm/IR/IntrinsicsDirectX.td"
 include "llvm/IR/IntrinsicsLoongArch.td"
-
+include "llvm/IR/IntrinsicsRL78.td"
 #endif // TEST_INTRINSICS_SUPPRESS_DEFS

@@ -713,6 +713,183 @@ set(riscv64_SOURCES
   ${riscv_SOURCES}
 )
 
+set(GENERIC_SOURCES_RL78
+  absvdi2.c
+  absvsi2.c
+  addvdi3.c
+  addvsi3.c
+  bswapdi2.c
+  bswapsi2.c
+  clzdi2.c
+  clzsi2.c
+  cmpdi2.c
+  comparedf2.c
+  comparesf2.c
+  ctzdi2.c
+  ctzsi2.c
+  divdc3.c
+  divmoddi4.c
+  divmodsi4.c
+  divsc3.c
+  extendhfsf2.c
+  ffsdi2.c
+  ffssi2.c
+  floattidf.c
+  floattisf.c
+  floatuntidf.c
+  floatuntisf.c
+  fp_mode.c
+  int_util.c
+  muldc3.c
+  mulodi4.c
+  mulosi4.c
+  mulsc3.c
+  mulvdi3.c
+  mulvsi3.c
+  negdf2.c
+  negdi2.c
+  negsf2.c
+  negvdi2.c
+  negvsi2.c
+  paritydi2.c
+  paritysi2.c
+  popcountdi2.c
+  popcountsi2.c
+  powidf2.c
+  powisf2.c
+  subvdi3.c
+  subvsi3.c
+  trampoline_setup.c
+  truncdfhf2.c
+  truncsfhf2.c
+  ucmpdi2.c
+  udivmoddi4.c
+  udivmodsi4.c
+)
+
+set(ASM_RL78_SOURCES
+  rl78/COM_slldiv.S
+  rl78/COM_llshl.S
+  rl78/COM_llsar.S
+  rl78/COM_llshr.S
+  rl78/ashlhi3.S
+  rl78/ashlqi3.S
+  rl78/ashrhi3.S
+  rl78/ashrqi3.S
+  rl78/COM_scdiv.S
+  rl78/COM_ucdiv.S
+  rl78/hi_min_max.c
+  rl78/lshrhi3.S
+  rl78/lshrqi3.S
+  rl78/rotlhi3.S
+  rl78/rotlqi3.S
+  rl78/rotrhi3.S
+  rl78/rotrqi3.S
+  rl78/COM_divul.S
+  rl78/COM_divui.S
+  rl78/COM_mulsi.S
+  rl78/COM_mulsl.S
+  rl78/COM_mulul.S
+  rl78/COM_lshl.S
+  rl78/COM_lshr.S
+  rl78/COM_lsar.S
+  rl78/COM_ftosl.S
+  rl78/COM_dtosl.S
+  rl78/COM_ftosll.S
+  rl78/REL_dtol.S
+  rl78/REL_ftol.S
+  rl78/REL_ftoll.S
+  rl78/REL_lltosll.S
+  rl78/REL_ltosl.S
+  rl78/REL_llrev.S
+  rl78/COM_dtoul.S
+  rl78/COM_ftoull.S
+  rl78/COM_ftoul.S
+  rl78/COM_slltof.S
+  rl78/COM_sltod.S
+  rl78/COM_sltof.S
+  rl78/REL_lltof.S
+  rl78/REL_ltod.S
+  rl78/REL_ltof.S
+  rl78/REL_setexp_ll.S
+  rl78/COM_slltod.S
+  rl78/COM_ulltof.S
+  rl78/COM_ultod.S
+  rl78/COM_ultof.S
+  rl78/REL_d_round.S
+  rl78/REL_lltod.S
+  rl78/COM_dtosll.S
+  rl78/COM_dtoull.S
+  rl78/COM_ulltod.S
+  rl78/REL_dtoll.S
+  rl78/COM_ftod.S
+  rl78/COM_fdiv.S
+  rl78/REL_f_inf.S
+  rl78/REL_f_norm.S
+  rl78/REL_f_round.S
+  rl78/COM_fmul.S
+  rl78/COM_faddsub.S
+  rl78/COM_dadd.S
+  rl78/REL_d_inf.S
+  rl78/REL_d_check.S
+  rl78/REL_d_shl11.S
+  rl78/COM_ddiv.S
+  rl78/COM_dmul.S
+  rl78/COM_dsub.S
+  rl78/COM_dtof.S
+  rl78/COM_uldiv.S
+  rl78/COM_ulldiv.S
+  rl78/REL_lldiv.S
+  rl78/COM_ulrem.S
+  rl78/COM_ullrem.S
+  rl78/REL_llrem.S
+  rl78/COM_slrem.S
+  rl78/COM_sllrem.S
+  rl78/COM_llmul.S
+  rl78/REL_llmul_addh.S
+  rl78/COM_macsi.S
+  rl78/COM_macui.S
+  rl78/COM_screm.S
+  rl78/COM_ucrem.S
+  rl78/COM_remui.S
+  rl78/COM_remul.S
+  rl78/COM_uirem.S
+  rl78/COM_sirem.S
+  rl78/COM_mului.S
+  rl78/COM_imul.S
+  rl78/COM_lmul.S
+  rl78/COM_deq.S
+  rl78/COM_dge.S
+  rl78/COM_dgt.S
+  rl78/COM_dle.S
+  rl78/COM_dlt.S
+  rl78/COM_dne.S
+  rl78/COM_dunordered.S
+  rl78/COM_feq.S
+  rl78/COM_fge.S
+  rl78/COM_fgt.S
+  rl78/COM_fle.S
+  rl78/COM_flt.S
+  rl78/COM_fne.S
+  rl78/COM_funordered.S
+  rl78/REL_dcmp.S
+  rl78/REL_dordered_core.S
+  rl78/REL_fcmp.S
+  rl78/REL_fordered_core.S
+  rl78/COM_sldiv.S
+  rl78/COM_sidiv.S
+  rl78/COM_uidiv.S
+)
+
+set_property(SOURCE ${ASM_RL78_SOURCES} PROPERTY COMPILE_FLAGS -frenesas-extensions)
+
+set(ALL_RL78_SOURCES
+  ${GENERIC_SOURCES_RL78}
+  ${ASM_RL78_SOURCES})
+
+
+set(rl78_SOURCES  ${ALL_RL78_SOURCES})
+
 set(sparc_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
 set(sparcv9_SOURCES ${GENERIC_SOURCES} ${GENERIC_TF_SOURCES})
 

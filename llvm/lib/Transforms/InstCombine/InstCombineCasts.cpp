@@ -1182,9 +1182,12 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &Zext) {
   // zext(trunc(X) & C) -> (X & zext(C)).
   Constant *C;
   Value *X;
-  if (match(Src, m_OneUse(m_And(m_Trunc(m_Value(X)), m_Constant(C)))) &&
+  
+
+  // TODO: For RL78 we don't want this replacement.
+  /* if (match(Src, m_OneUse(m_And(m_Trunc(m_Value(X)), m_Constant(C)))) &&
       X->getType() == DestTy)
-    return BinaryOperator::CreateAnd(X, ConstantExpr::getZExt(C, DestTy));
+    return BinaryOperator::CreateAnd(X, ConstantExpr::getZExt(C, DestTy)); */
 
   // zext((trunc(X) & C) ^ C) -> ((X & zext(C)) ^ zext(C)).
   Value *And;
@@ -1200,11 +1203,13 @@ Instruction *InstCombinerImpl::visitZExt(ZExtInst &Zext) {
   // intermediate values have extra uses. This could be generalized further for
   // a non-constant mask operand.
   // zext (and (trunc X), C) --> and X, (zext C)
-  if (match(Src, m_And(m_Trunc(m_Value(X)), m_Constant(C))) &&
+
+  // TODO: For RL78 we don't want this replacement.
+  /* if (match(Src, m_And(m_Trunc(m_Value(X)), m_Constant(C))) &&
       X->getType() == DestTy) {
     Constant *ZextC = ConstantExpr::getZExt(C, DestTy);
     return BinaryOperator::CreateAnd(X, ZextC);
-  }
+  } */
 
   if (match(Src, m_VScale())) {
     if (Zext.getFunction() &&
@@ -1934,6 +1939,17 @@ Instruction *InstCombinerImpl::commonPointerCastTransforms(CastInst &CI) {
       return replaceOperand(CI, 0, GEP->getOperand(0));
     }
   }
+  // For RL78 bitcasting a near data pointer to a near function pointer
+  // is not allowed. We change the order
+  /*if(!DestTy->isOpaquePointerTy() && !SrcTy->isOpaquePointerTy()) {
+  // TODO: this needs to be looked into. No idea for now how to check for the
+  pointed type. Type *DestElemTy = CI.getp; Type *SrcElemTy =
+  SrcTy->getContainedType(); if (DestElemTy->isFunctionTy() !=
+  SrcElemTy->isFunctionTy()) { PointerType *SrcDestASTy =
+        PointerType::get(SrcElemTy, DestTy->getAddressSpace());
+    Value *AddrSpaceCast = Builder.CreateAddrSpaceCast(Src, SrcDestASTy);
+    return new BitCastInst(AddrSpaceCast, CI.getType());
+  }}*/
 
   return commonCastTransforms(CI);
 }

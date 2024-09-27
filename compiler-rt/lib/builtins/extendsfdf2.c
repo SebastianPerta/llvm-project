@@ -6,8 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__RL78_32BIT_DOUBLES__)
+#define SRC_SINGLE
+#define DST_SINGLE
+#else
 #define SRC_SINGLE
 #define DST_DOUBLE
+#endif
 #include "fp_extend_impl.inc"
 
 COMPILER_RT_ABI double __extendsfdf2(float a) { return __extendXfYf2__(a); }

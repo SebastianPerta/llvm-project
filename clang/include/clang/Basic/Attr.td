@@ -425,6 +425,7 @@ def TargetMSP430 : TargetArch<["msp430"]>;
 def TargetM68k : TargetArch<["m68k"]>;
 def TargetRISCV : TargetArch<["riscv32", "riscv64"]>;
 def TargetX86 : TargetArch<["x86"]>;
+def TargetRL78 : TargetArch<["RL78"]>;
 def TargetAnyX86 : TargetArch<["x86", "x86_64"]>;
 def TargetWebAssembly : TargetArch<["wasm32", "wasm64"]>;
 def TargetNVPTX : TargetArch<["nvptx", "nvptx64"]>;
@@ -4199,3 +4200,69 @@ def AvailableOnlyInDefaultEvalMethod : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+// An string argument with a default value
+class DefaultStringArgument<string name, string default> : StringArgument<name> {
+  string Default = default;
+}
+
+// An integer argument with a default value
+class DefaultUnsignedArgument<string name, int default> : UnsignedArgument<name> {
+  int Default = default;
+}
+
+def RL78Interrupt : InheritableAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"interrupt">];
+  let Subjects = SubjectList<[Function]>;
+  let ParseKind = "Interrupt";
+  let Args = [DefaultUnsignedArgument<"Specs", 0>, VariadicUnsignedArgument<"Vects">];
+  let HasCustomParsing = 1;
+  let Documentation = [RL78InterruptDocs];
+}
+
+def RL78BRKInterrupt : InheritableAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"brk_interrupt">];
+  let Subjects = SubjectList<[Function]>;
+  let Args = [DefaultUnsignedArgument<"Specs", 0>];
+  let ParseKind = "BRKInterrupt";
+  let HasCustomParsing = 1;
+  let Documentation = [RL78InterruptDocs];
+}
+
+def RL78Saddr : InheritableAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"saddr">, CustomKeyword<"__saddr">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  let ParseKind = "Saddr";
+  let Documentation = [RL78SaddrDocs];
+}
+
+def RL78InlineASM : InheritableAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"inline_asm">];
+  let Subjects = SubjectList<[Function]>;
+  let ParseKind = "InlineASM";
+  let Documentation = [RL78InlineASMDocs];
+}
+
+def RL78Address : Attr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"address">];
+  let Subjects = SubjectList<[GlobalVar]>;
+  let Args = [UnsignedArgument<"Address">];
+  let ParseKind = "Address";
+  //TODO:
+  let Documentation = [RL78InlineASMDocs];
+}
+
+def RL78Near : TypeAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [CustomKeyword<"__near">];
+  let Documentation = [Undocumented];
+}
+
+def RL78Far : TypeAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [CustomKeyword<"__far">];
+  let Documentation = [Undocumented];
+}
+
+def RL78Callt : InheritableAttr, TargetSpecificAttr<TargetRL78> {
+  let Spellings = [GCC<"callt">, CustomKeyword<"__callt">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [Undocumented];
+}

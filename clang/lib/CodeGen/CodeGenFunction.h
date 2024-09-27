@@ -545,6 +545,9 @@ public:
   /// potentially set the return value.
   bool SawAsmBlock = false;
 
+  /// True when emitting code for an inline asm statement.
+  bool InEmitAsmStmt = false;
+
   GlobalDecl CurSEHParent;
 
   /// True if the current function is an outlined SEH helper. This can be a
@@ -4317,6 +4320,7 @@ public:
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
   llvm::Value *EmitLoongArchBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  llvm::Value *EmitRL78BuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
                                llvm::AtomicOrdering &AO,
                                llvm::SyncScope::ID &SSID);

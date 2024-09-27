@@ -65,8 +65,8 @@ static __inline fp_t __addXf3__(fp_t a, fp_t b) {
   }
 
   // Extract the exponent and significand from the (possibly swapped) a and b.
-  int aExponent = aRep >> significandBits & maxExponent;
-  int bExponent = bRep >> significandBits & maxExponent;
+  si_int aExponent = aRep >> significandBits & maxExponent;
+  si_int bExponent = bRep >> significandBits & maxExponent;
   rep_t aSignificand = aRep & significandMask;
   rep_t bSignificand = bRep & significandMask;
 
@@ -91,7 +91,7 @@ static __inline fp_t __addXf3__(fp_t a, fp_t b) {
 
   // Shift the significand of b by the difference in exponents, with a sticky
   // bottom bit to get rounding correct.
-  const unsigned int align = aExponent - bExponent;
+  const su_int align = aExponent - bExponent;
   if (align) {
     if (align < typeWidth) {
       const bool sticky = (bSignificand << (typeWidth - align)) != 0;
@@ -109,7 +109,7 @@ static __inline fp_t __addXf3__(fp_t a, fp_t b) {
     // If partial cancellation occured, we need to left-shift the result
     // and adjust the exponent.
     if (aSignificand < implicitBit << 3) {
-      const int shift = rep_clz(aSignificand) - rep_clz(implicitBit << 3);
+      const si_int shift = rep_clz(aSignificand) - rep_clz(implicitBit << 3);
       aSignificand <<= shift;
       aExponent -= shift;
     }
@@ -132,14 +132,14 @@ static __inline fp_t __addXf3__(fp_t a, fp_t b) {
   if (aExponent <= 0) {
     // The result is denormal before rounding.  The exponent is zero and we
     // need to shift the significand.
-    const int shift = 1 - aExponent;
+    const si_int shift = 1 - aExponent;
     const bool sticky = (aSignificand << (typeWidth - shift)) != 0;
     aSignificand = aSignificand >> shift | sticky;
     aExponent = 0;
   }
 
   // Low three bits are round, guard, and sticky.
-  const int roundGuardSticky = aSignificand & 0x7;
+  const si_int roundGuardSticky = aSignificand & 0x7;
 
   // Shift the significand into place, and mask off the implicit bit.
   rep_t result = aSignificand >> 3 & significandMask;

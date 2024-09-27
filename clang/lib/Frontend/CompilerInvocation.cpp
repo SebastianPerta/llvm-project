@@ -670,7 +670,7 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
                       bool CheckAgainstOriginalInvocation = false,
                       bool ForceRoundTrip = false) {
 #ifndef NDEBUG
-  bool DoRoundTripDefault = true;
+  bool DoRoundTripDefault = false; // TODO: RL78 revert back to true after fixing target features vs langopts (ex: mfar-code/far-code)
 #else
   bool DoRoundTripDefault = false;
 #endif
@@ -1633,7 +1633,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   // At O0 we want to fully disable inlining outside of cases marked with
   // 'alwaysinline' that are required for correctness.
-  if (Opts.OptimizationLevel == 0) {
+  //TODO: Seb we can use AddRL78TargetArgs to change this
+  if (Opts.OptimizationLevel < 3) {
     Opts.setInlining(CodeGenOptions::OnlyAlwaysInlining);
   } else if (const Arg *A = Args.getLastArg(options::OPT_finline_functions,
                                             options::OPT_finline_hint_functions,
@@ -1760,7 +1761,8 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   Opts.PrepareForLTO = false;
   Opts.PrepareForThinLTO = false;
-  if (Arg *A = Args.getLastArg(OPT_flto_EQ)) {
+  // TODO: RL78
+  /*if (Arg *A = Args.getLastArg(OPT_flto_EQ)) {
     Opts.PrepareForLTO = true;
     StringRef S = A->getValue();
     if (S == "thin")
@@ -1776,7 +1778,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
           << A->getAsString(Args) << "-x ir";
     Opts.ThinLTOIndexFile =
         std::string(Args.getLastArgValue(OPT_fthinlto_index_EQ));
-  }
+  }*/
   if (Arg *A = Args.getLastArg(OPT_save_temps_EQ))
     Opts.SaveTempsFilePrefix =
         llvm::StringSwitch<std::string>(A->getValue())
@@ -3721,6 +3723,26 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   else if (Args.hasArg(OPT_fwrapv))
     Opts.setSignedOverflowBehavior(LangOptions::SOB_Defined);
 
+  Opts.UnsignedBitfields = Args.hasArg(OPT_funsigned_bitfields);
+  
+  if (T.isRL78()) {
+    Opts.RenesasRL78 = 1;
+    Opts.RenesasExt = Args.hasArg(OPT_frenesas_extensions);
+    Opts.RenesasVaArgPromotion = Args.hasArg(OPT_frenesas_vaarg);
+    Opts.RenesasRL78CodeModel = Args.hasArg(OPT_mfar_code) ? 1 : 0;
+    Opts.RenesasRL78DataModel = Args.hasArg(OPT_mfar_data) ? 1 : 0;
+
+    const Arg *mRom =
+        Args.getLastArg(options::OPT_mcommon_rom, options::OPT_mnear_rom,
+                        options::OPT_mfar_rom);
+    if (mRom == nullptr || mRom->getOption().getID() == options::OPT_mnear_rom)
+      Opts.setRenesasRL78RomModel(LangOptions::RL78RomModelKind::Near);
+    else if (mRom->getOption().getID() == options::OPT_mfar_rom)
+      Opts.setRenesasRL78RomModel(LangOptions::RL78RomModelKind::Far);
+    else
+      Opts.setRenesasRL78RomModel(LangOptions::RL78RomModelKind::Common);
+  }
+
   Opts.MSCompatibilityVersion = 0;
   if (const Arg *A = Args.getLastArg(OPT_fms_compatibility_version)) {
     VersionTuple VT;
@@ -4071,6 +4093,14 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
                            T.getOS() == llvm::Triple::ShaderModel;
     if (!SupportedTarget)
       Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_finput_charset)) {
+    Opts.InputCharset = A->getValue();
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_fexec_charset)) {
+    Opts.ExecCharset = A->getValue();
   }
 
   return Diags.getNumErrors() == NumErrorsBefore;

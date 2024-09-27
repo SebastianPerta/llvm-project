@@ -36,3 +36,9 @@ COMPILER_RT_ABI di_int __lshrdi3(di_int a, int b) {
 #if defined(__ARM_EABI__)
 COMPILER_RT_ALIAS(__lshrdi3, __aeabi_llsr)
 #endif
+
+#if defined(__RL78__)
+unsigned long long _COM_llshr(unsigned long long src1, unsigned char src2) { 
+  return __lshrdi3(src1,src2);
+}
+#endif

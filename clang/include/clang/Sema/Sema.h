@@ -725,6 +725,28 @@ public:
     FpPragmaStack.Stack.clear();
     FpPragmaStack.CurrentValue = FPO.getChangesFrom(FPOptions(LangOpts));
   }
+   enum class RenesasCCRLPragmaType {
+    CCRLInterrupt,
+    CCRLBrkInterrupt,
+    CCRLInline,
+    CCRLNoInline,
+    CCRLInlineASM,
+    CCRLAddress,
+    CCRLSaddr,
+    CCRLCallt,
+    CCRLNear,
+    CCRLFar
+  };
+
+  struct RenesasCCRLPragmaEntry {
+    std::string Identifier;
+    SourceLocation Loc;
+    RenesasCCRLPragmaType PragmaType;
+    unsigned ExtraData;
+	SmallVector<unsigned, 4> ExtraDataVects;
+  };
+
+  SmallVector<RenesasCCRLPragmaEntry, 4> RenesasCCRLPragmaEntries;
 
   // RAII object to push / pop sentinel slots for all MS #pragma stacks.
   // Actions should be performed only if we enter / exit a C++ method body.
@@ -1972,6 +1994,8 @@ public:
     /// the translation unit.
     Private
   };
+
+  void ActOnCCRLPragmaEntry(const SmallVectorImpl<RenesasCCRLPragmaEntry> &PragmaEntries, SourceLocation Loc);
 
   void ActOnStartOfTranslationUnit();
   void ActOnEndOfTranslationUnit();
@@ -10546,6 +10570,7 @@ public:
   bool inferObjCARCLifetime(ValueDecl *decl);
 
   void deduceOpenCLAddressSpace(ValueDecl *decl);
+  void handleRL78AddressSpace(ValueDecl *decl, bool IsParameter);
 
   ExprResult
   HandleExprPropertyRefExpr(const ObjCObjectPointerType *OPT,

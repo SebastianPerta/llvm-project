@@ -60,6 +60,9 @@ public:
                                    const Constant *C,
                                    Align &Alignment) const override;
 
+  virtual std::string getSectionPrefixForGlobal(SectionKind Kind,
+                            const GlobalObject *GO = nullptr) const;
+
   MCSection *getExplicitSectionGlobal(const GlobalObject *GO, SectionKind Kind,
                                       const TargetMachine &TM) const override;
 

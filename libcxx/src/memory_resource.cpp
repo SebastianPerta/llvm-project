@@ -416,7 +416,7 @@ static void* align_down(size_t align, size_t size, void*& ptr, size_t& space) {
     return nullptr;
 
   char* p1      = static_cast<char*>(ptr);
-  char* new_ptr = reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(p1 - size) & ~(align - 1));
+  char* new_ptr = reinterpret_cast<char*>(reinterpret_cast<uintptr_t>(p1 - size) & ~static_cast<uintptr_t>(align - 1));
 
   if (new_ptr < (p1 - space))
     return nullptr;

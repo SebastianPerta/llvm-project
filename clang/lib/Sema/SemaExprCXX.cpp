@@ -3151,6 +3151,9 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
         getLangOpts().CPlusPlus11 ? EST_BasicNoexcept : EST_DynamicNone;
   }
 
+  if (getLangOpts().RenesasRL78CodeModel)
+    EPI.ExtInfo = EPI.ExtInfo.withFar(true);
+
   auto CreateAllocationFunctionDecl = [&](Attr *ExtraAttr) {
     QualType FnType = Context.getFunctionType(Return, Params, EPI);
     FunctionDecl *Alloc = FunctionDecl::Create(

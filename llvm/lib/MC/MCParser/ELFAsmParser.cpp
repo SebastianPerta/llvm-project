@@ -332,6 +332,11 @@ static unsigned parseSectionFlags(const Triple &TT, StringRef flagsStr,
         return -1U;
       flags |= ELF::SHF_ARM_PURECODE;
       break;
+#ifdef USE_SHF_RENESAS_ABS
+	case 'Y':
+      flags |= ELF::SHF_RENESAS_ABS;
+      break;
+#endif
     case 's':
       if (TT.getArch() != Triple::hexagon)
         return -1U;

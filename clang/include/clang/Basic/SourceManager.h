@@ -47,6 +47,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/CharSet.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <cassert>
@@ -214,7 +215,8 @@ public:
   ///   will be emitted at.
   std::optional<llvm::MemoryBufferRef>
   getBufferOrNone(DiagnosticsEngine &Diag, FileManager &FM,
-                  SourceLocation Loc = SourceLocation()) const;
+                  SourceLocation Loc = SourceLocation(),
+                  llvm::CharSetConverter *Converter = nullptr) const;
 
   /// Returns the size of the content encapsulated by this
   /// ContentCache.
@@ -1023,10 +1025,10 @@ public:
   /// If there is an error opening this buffer the first time, return
   /// std::nullopt.
   std::optional<llvm::MemoryBufferRef>
-  getBufferOrNone(FileID FID, SourceLocation Loc = SourceLocation()) const {
+  getBufferOrNone(FileID FID, SourceLocation Loc = SourceLocation(), llvm::CharSetConverter *Converter = nullptr) const {
     if (auto *Entry = getSLocEntryForFile(FID))
       return Entry->getFile().getContentCache().getBufferOrNone(
-          Diag, getFileManager(), Loc);
+          Diag, getFileManager(), Loc, Converter);
     return std::nullopt;
   }
 

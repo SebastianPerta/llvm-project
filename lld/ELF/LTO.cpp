@@ -128,6 +128,29 @@ static lto::Config createConfig() {
   c.MAttrs = getMAttrs();
   c.CGOptLevel = config->ltoCgo;
 
+  // For RL78, override MAttrs based on the target-abi of the first bitcode file
+  // TODO: can we move this to the target-specific code?
+  if (config->emachine == EM_RL78 && !ctx.bitcodeFiles.empty()) {
+    const auto &obj = ctx.bitcodeFiles.front()->obj;
+    if (obj) {
+      LLVMContext ctx{};
+      auto modOrErr = obj->getSingleBitcodeModule().getLazyModule(
+          ctx, /*ShouldLazyLoadMetadata=*/false, /*IsImporting*/ false);
+      if (!modOrErr)
+        report_fatal_error("Can't load module, abort.");
+      if (auto target_abi_md = modOrErr.get()->getModuleFlag("target-abi")) {
+        if (auto target_abi_str = cast<MDString>(target_abi_md)) {
+          auto abi = target_abi_str->getString();
+          auto add_mattr = [&c](auto mattr) { c.MAttrs.emplace_back(mattr); };
+          add_mattr(abi.contains("fc") ? "+far-code" : "-far-code");
+          add_mattr(abi.contains("d64") ? "+64bit-doubles" : "-64bit-doubles");
+          if (abi.contains("mda"))
+            add_mattr(abi.contains("nomda") ? "+disable-mda" : "-disable-mda");
+        }
+      }
+    }
+  }
+
   c.PTO.LoopVectorization = c.OptLevel > 1;
   c.PTO.SLPVectorization = c.OptLevel > 1;
 

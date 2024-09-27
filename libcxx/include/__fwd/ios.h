@@ -10,6 +10,10 @@
 #define _LIBCPP___FWD_IOS_H
 
 #include <__config>
+#ifdef __RL78__
+// Used to pull in _NEWLIB_VERSION for a consistent streamoff definition.
+#include <__std_mbstate_t.h>  
+#endif
 #include <__fwd/string.h>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

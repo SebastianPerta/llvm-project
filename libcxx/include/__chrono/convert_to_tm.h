@@ -128,7 +128,11 @@ _LIBCPP_HIDE_FROM_ABI _Tm __convert_to_tm(const _ChronoT& __value) {
       __result.tm_sec  = __sec.count() % 60;
     } else {
       uint64_t __sec = chrono::duration_cast<chrono::seconds>(__value).count();
+#ifdef __RL78__
+      __sec %= 24 * 3600UL;
+#else
       __sec %= 24 * 3600;
+#endif
       __result.tm_hour = __sec / 3600;
       __sec %= 3600;
       __result.tm_min = __sec / 60;

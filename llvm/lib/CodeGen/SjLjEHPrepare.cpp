@@ -494,8 +494,14 @@ bool SjLjEHPrepare::runOnFunction(Function &F) {
       &M, Intrinsic::frameaddress,
       {Type::getInt8PtrTy(M.getContext(),
                           M.getDataLayout().getAllocaAddrSpace())});
-  StackAddrFn = Intrinsic::getDeclaration(&M, Intrinsic::stacksave);
-  StackRestoreFn = Intrinsic::getDeclaration(&M, Intrinsic::stackrestore);
+
+  // FIXME: is there a better way to figure it out here if a RL78 target?
+  auto StackPtrTy = Type::getInt8PtrTy(M.getContext(),
+    StringRef(M.getTargetTriple()).startswith("rl78") ?
+    M.getDataLayout().getAllocaAddrSpace() : 0);
+
+  StackAddrFn = Intrinsic::getDeclaration(&M, Intrinsic::stacksave, StackPtrTy);
+  StackRestoreFn = Intrinsic::getDeclaration(&M, Intrinsic::stackrestore, StackPtrTy);
   BuiltinSetupDispatchFn =
     Intrinsic::getDeclaration(&M, Intrinsic::eh_sjlj_setup_dispatch);
   LSDAAddrFn = Intrinsic::getDeclaration(&M, Intrinsic::eh_sjlj_lsda);

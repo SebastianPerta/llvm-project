@@ -19,6 +19,7 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCParser/MCAsmLexer.h"
 #include "llvm/Support/Compiler.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SMLoc.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include <cassert>
@@ -31,6 +32,10 @@
 
 using namespace llvm;
 
+namespace llvm {
+extern cl::opt<bool> EnableRL78CCRLAsmSyntax;
+}
+
 AsmLexer::AsmLexer(const MCAsmInfo &MAI) : MAI(MAI) {
   AllowAtInIdentifier = !StringRef(MAI.getCommentString()).startswith("@");
   LexMotorolaIntegers = MAI.shouldUseMotorolaIntegers();
@@ -42,10 +47,13 @@ void AsmLexer::setBuffer(StringRef Buf, const char *ptr,
                          bool EndStatementAtEOF) {
   CurBuf = Buf;
 
-  if (ptr)
+  if (ptr) {
     CurPtr = ptr;
-  else
+    EndPtr = CurPtr + strlen(ptr);
+  } else {
     CurPtr = CurBuf.begin();
+    EndPtr = CurPtr + CurBuf.size();
+  }
 
   TokStart = nullptr;
   this->EndStatementAtEOF = EndStatementAtEOF;
@@ -97,6 +105,12 @@ AsmToken AsmLexer::LexFloatLiteral() {
                   StringRef(TokStart, CurPtr - TokStart));
 }
 
+/// LexIdentifier: [a-zA-Z_.][a-zA-Z0-9_$.@?]*
+static bool IsIdentifierChar(char c, bool AllowAt) {
+  return isAlnum(c) || c == '_' || c == '$' || c == '.' ||
+         (c == '@' && AllowAt) || c == '?';
+}
+
 /// LexHexFloatLiteral matches essentially (.[0-9a-fA-F]*)?[pP][+-]?[0-9a-fA-F]+
 /// while making sure there are enough actual digits around for the constant to
 /// be valid.
@@ -113,6 +127,30 @@ AsmToken AsmLexer::LexHexFloatLiteral(bool NoIntDigits) {
     ++CurPtr;
 
     const char *FracStart = CurPtr;
+
+    // See if it's a possible RL78 bit positional, with explicit
+    // bit position.
+    if (MAI.hasRL78Expressions() && !NoIntDigits && CurPtr[0] >= '0' &&
+        CurPtr[0] <= '7' &&
+        ((CurPtr + 1) == CurBuf.end() || CurPtr[1] == ' ' || CurPtr[1] == ',' ||
+         CurPtr[1] == ';' || CurPtr[1] == '\n' || CurPtr[1] == '\r' ||
+         CurPtr[1] == '\t')) {
+      CurPtr++;
+      return AsmToken(AsmToken::BitPosition,
+                      StringRef(TokStart, CurPtr - TokStart));
+    }
+
+    // See if we have a symbolic bit position.
+    // We accept symbolic bit positions only if -frenesas-extensions is active.
+    if (EnableRL78CCRLAsmSyntax && !NoIntDigits &&
+        IsIdentifierChar(*CurPtr, AllowAtInIdentifier) && !isDigit(*CurPtr)) {
+      // Lex the symbol.
+      while (IsIdentifierChar(CurPtr[0], false))
+        CurPtr++;
+      return AsmToken(AsmToken::BitPosition,
+                      StringRef(TokStart, CurPtr - TokStart));
+    }
+
     while (isHexDigit(*CurPtr))
       ++CurPtr;
 
@@ -151,6 +189,34 @@ static bool isIdentifierChar(char C, bool AllowAt, bool AllowHash) {
 }
 
 AsmToken AsmLexer::LexIdentifier() {
+
+// Handle RL78 unary operators.
+  if(MAI.hasRL78Expressions()) {
+      AsmToken::TokenKind Operator;
+      unsigned OperatorLength;
+
+      std::tie(Operator, OperatorLength) =
+          StringSwitch<std::pair<AsmToken::TokenKind, unsigned>>(
+              StringRef(CurPtr - 1, (EndPtr - CurPtr) + 1))
+              .StartsWithLower("high(", {AsmToken::High, 4})
+              .StartsWithLower("low(", {AsmToken::Low, 3})
+              .StartsWithLower("highw(", {AsmToken::HighW, 5})
+              .StartsWithLower("loww(", {AsmToken::LowW, 4})
+              .StartsWithLower("mirhw(", {AsmToken::MirHW, 5})
+              .StartsWithLower("mirlw(", {AsmToken::MirLW, 5})
+              .StartsWithLower("smrlw(", {AsmToken::SMRLW, 5})
+              .StartsWithLower("startof(", {AsmToken::StartOf, 7})
+              .StartsWithLower("sizeof(", {AsmToken::SizeOf, 6})
+              .StartsWithLower("datapos(", {AsmToken::DataPos, 7})
+              .StartsWithLower("bitpos(", {AsmToken::BitPos, 6})
+              .Default({AsmToken::Identifier, 1});
+
+      if (Operator != AsmToken::Identifier) {
+        CurPtr += OperatorLength - 1;
+        return AsmToken(Operator, StringRef(TokStart, OperatorLength));
+      }
+  }
+
   // Check for floating point literals.
   if (CurPtr[-1] == '.' && isDigit(*CurPtr)) {
     // Disambiguate a .1243foo identifier from a floating literal.
@@ -887,7 +953,7 @@ AsmToken AsmLexer::LexToken() {
 
       std::tie(Operator, OperatorLength) =
           StringSwitch<std::pair<AsmToken::TokenKind, unsigned>>(
-              StringRef(CurPtr))
+              StringRef(CurPtr, EndPtr - CurPtr))
               .StartsWith("call16", {AsmToken::PercentCall16, 7})
               .StartsWith("call_hi", {AsmToken::PercentCall_Hi, 8})
               .StartsWith("call_lo", {AsmToken::PercentCall_Lo, 8})

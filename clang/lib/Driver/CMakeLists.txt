@@ -37,6 +37,7 @@ add_clang_library(clangDriver
   ToolChains/Arch/Mips.cpp
   ToolChains/Arch/PPC.cpp
   ToolChains/Arch/RISCV.cpp
+  ToolChains/Arch/RL78.cpp
   ToolChains/Arch/Sparc.cpp
   ToolChains/Arch/SystemZ.cpp
   ToolChains/Arch/VE.cpp
@@ -80,6 +81,7 @@ add_clang_library(clangDriver
   ToolChains/OpenBSD.cpp
   ToolChains/PS4CPU.cpp
   ToolChains/RISCVToolchain.cpp
+  ToolChains/RL78.cpp
   ToolChains/Solaris.cpp
   ToolChains/SPIRV.cpp
   ToolChains/TCE.cpp

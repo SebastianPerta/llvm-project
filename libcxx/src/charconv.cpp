@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef __RL78_32BIT_DOUBLES__ // not supported on RL78 unless -m64bit-doubles is specified
+
 #include <charconv>
 #include <string.h>
 
@@ -84,3 +86,5 @@ to_chars_result to_chars(char* __first, char* __last, long double __value, chars
 }
 
 _LIBCPP_END_NAMESPACE_STD
+
+#endif // __RL78_32BIT_DOUBLES__

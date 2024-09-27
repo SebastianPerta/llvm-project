@@ -6,8 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if defined(__RL78_32BIT_DOUBLES__)
+#define SRC_SINGLE
+#define DST_HALF
+#else
 #define SRC_DOUBLE
 #define DST_HALF
+#endif
 #include "fp_trunc_impl.inc"
 
 COMPILER_RT_ABI dst_t __truncdfhf2(double a) { return __truncXfYf2__(a); }

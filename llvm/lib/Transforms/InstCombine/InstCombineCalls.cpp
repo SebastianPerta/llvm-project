@@ -162,7 +162,8 @@ Instruction *InstCombinerImpl::SimplifyAnyMemTransfer(AnyMemTransferInst *MI) {
   uint64_t Size = MemOpLength->getLimitedValue();
   assert(Size && "0-sized memory transferring should be removed already.");
 
-  if (Size > 8 || (Size&(Size-1)))
+  //TODO: seb for RL78 is not good, see gcc c-torture\execute\pr53688.c
+  if (Size > 2 || (Size&(Size-1)))
     return nullptr;  // If not 1/2/4/8 bytes, exit.
 
   // If it is an atomic and alignment is less than the size then we will
@@ -287,7 +288,8 @@ Instruction *InstCombinerImpl::SimplifyAnyMemSet(AnyMemSetInst *MI) {
       return nullptr;
 
   // memset(s,c,n) -> store s, c (for n=1,2,4,8)
-  if (Len <= 8 && isPowerOf2_32((uint32_t)Len)) {
+  // TODO seb for rl78 8 is not good.
+  if (Len <= 2 && isPowerOf2_32((uint32_t)Len)) {
     Type *ITy = IntegerType::get(MI->getContext(), Len*8);  // n=1 -> i8.
 
     Value *Dest = MI->getDest();

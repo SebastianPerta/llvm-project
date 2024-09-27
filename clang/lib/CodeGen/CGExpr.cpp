@@ -2225,6 +2225,20 @@ void CodeGenFunction::EmitStoreThroughLValue(RValue Src, LValue Dst,
   }
 
   assert(Src.isScalar() && "Can't emit an agg store with this method");
+
+  // RL78: auto add addrspacecast AS1->AS0 for -mfar-data
+  if (getLangOpts().RenesasRL78DataModel &&
+      Src.getScalarVal()->getType()->isPointerTy() &&
+      Src.getScalarVal()->getType()->getPointerAddressSpace() ==
+          getContext().getTargetAddressSpace(LangAS::__near) &&
+      Dst.getType().getAddressSpace() == LangAS::Default) {
+    Src = RValue::get(Builder.CreateAddrSpaceCast(
+        Src.getScalarVal(),
+        llvm::PointerType::get(
+            Src.getScalarVal()->getContext(),
+            getContext().getTargetAddressSpace(LangAS::Default))));
+  }
+
   EmitStoreOfScalar(Src.getScalarVal(), Dst, isInit);
 }
 
@@ -2634,7 +2648,7 @@ static llvm::Constant *EmitFunctionDeclPointer(CodeGenModule &CGM,
       // isn't the same as the type of a use.  Correct for this with a
       // bitcast.
       QualType NoProtoType =
-          CGM.getContext().getFunctionNoProtoType(Proto->getReturnType());
+          CGM.getContext().getFunctionNoProtoType(Proto->getReturnType(), Proto->getExtInfo());
       NoProtoType = CGM.getContext().getPointerType(NoProtoType);
       V = llvm::ConstantExpr::getBitCast(V,
                                       CGM.getTypes().ConvertType(NoProtoType));
@@ -4712,6 +4726,22 @@ LValue CodeGenFunction::EmitConditionalOperatorLValue(
   if (Info.LHS && Info.RHS) {
     Address lhsAddr = Info.LHS->getAddress(*this);
     Address rhsAddr = Info.RHS->getAddress(*this);
+    // RL78: allow a mix of address spaces by casting non-AS0 to AS0 (the default / far AS)
+    if (getLangOpts().RenesasRL78DataModel && lhsAddr.getAddressSpace() != rhsAddr.getAddressSpace()) {
+      // NOTE: we need to insert the address space cast in the incoming bb, hence the GetInsertBlock() and SetInsertPoint()s
+      auto crtBlock = Builder.GetInsertBlock();
+      if (lhsAddr.getAddressSpace()) {
+        Builder.SetInsertPoint(Info.lhsBlock->getTerminator());
+        lhsAddr = Builder.CreateAddrSpaceCast(lhsAddr, llvm::PointerType::get(lhsAddr.getPointer()->getContext(), 0));
+        Info.LHS->setAddress(lhsAddr);
+      }
+      if (rhsAddr.getAddressSpace()) {
+        Builder.SetInsertPoint(Info.rhsBlock->getTerminator());
+        rhsAddr = Builder.CreateAddrSpaceCast(rhsAddr, llvm::PointerType::get(rhsAddr.getPointer()->getContext(), 0));
+        Info.RHS->setAddress(rhsAddr);
+      }
+      Builder.SetInsertPoint(crtBlock);
+    }
     llvm::PHINode *phi = Builder.CreatePHI(lhsAddr.getType(), 2, "cond-lvalue");
     phi->addIncoming(lhsAddr.getPointer(), Info.lhsBlock);
     phi->addIncoming(rhsAddr.getPointer(), Info.rhsBlock);

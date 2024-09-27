@@ -447,6 +447,7 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
       .Case("elf32-msp430", {ELF32LEKind, EM_MSP430})
       .Case("elf32-loongarch", {ELF32LEKind, EM_LOONGARCH})
       .Case("elf64-loongarch", {ELF64LEKind, EM_LOONGARCH})
+      .Case("elf32-rl78", {ELF32LEKind, EM_RL78})
       .Default({ELFNoneKind, EM_NONE});
 }
 
@@ -807,8 +808,10 @@ Expr ScriptParser::readAssert() {
   expect(")");
 
   return [=] {
-    if (!e().getValue())
-      errorOrWarn(msg);
+    if (config->noinhibitAssert)
+      if (!e().getValue())
+        errorOrWarn(msg);
+
     return script->getDot();
   };
 }
@@ -1231,6 +1234,14 @@ Expr ScriptParser::readConstant() {
     return getPageSize();
   if (s == "MAXPAGESIZE")
     return [] { return config->maxPageSize; };
+  if (s == "MIRRORAREASTART")
+    return [] {
+      if ((config->eflags & ELF::EF_RL78_MAA_1) == ELF::EF_RL78_MAA_1) {
+        return 0x10000;
+      } else {
+        return 0;
+      }
+    };
   setError("unknown constant: " + s);
   return [] { return 0; };
 }

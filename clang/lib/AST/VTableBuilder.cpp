@@ -1313,7 +1313,10 @@ void ItaniumVTableBuilder::AddMethod(const CXXMethodDecl *MD,
     Components.push_back(VTableComponent::MakeDeletingDtor(DD));
   } else {
     // Add the return adjustment if necessary.
-    if (!ReturnAdjustment.isEmpty())
+    // RL78: also create thunks for far methods, even if no adjustment.
+    if (!ReturnAdjustment.isEmpty() ||
+        (Context.getLangOpts().RenesasRL78 &&
+          MD->getType()->castAs<FunctionType>()->getExtInfo().getFar()))
       VTableThunks[Components.size()].Return = ReturnAdjustment;
 
     // Add the function.

@@ -3215,7 +3215,20 @@ static bool HandleSizeof(EvalInfo &Info, SourceLocation Loc,
     return false;
   }
 
-  Size = Info.Ctx.getTypeSizeInChars(Type);
+  // RL78 hack to get sizeof working in case of function pointers with address
+  // space.
+  if (Type->isPointerType() &&
+      Type->getPointeeType()->getUnqualifiedDesugaredType()->isFunctionType()) {
+    const FunctionType *FT = cast<FunctionType>(
+        Type->getPointeeType()->getUnqualifiedDesugaredType());
+    // -mfar-data: unless func has an explicit AS, sizeof(pfunc) == sizeof(ptr)
+    Size = FT->getFar() || (Info.Ctx.getLangOpts().RenesasRL78DataModel &&
+                            !FT->getNonDefaultAS())
+               ? CharUnits::fromQuantity(4)
+               : CharUnits::fromQuantity(2);
+  } else {
+    Size = Info.Ctx.getTypeSizeInChars(Type);
+  }
   return true;
 }
 
@@ -9011,6 +9024,10 @@ bool PointerExprEvaluator::VisitCastExpr(const CastExpr *E) {
 
     if (Value.isInt()) {
       unsigned Size = Info.Ctx.getTypeSize(E->getType());
+      // RL78 far pointers are represented on 32 bits but everything above
+      // 24bits should be ignored.
+      if (Info.Ctx.getLangOpts().RenesasRL78)
+        Size = Size > 24 ? 24 : Size;
       uint64_t N = Value.getInt().extOrTrunc(Size).getZExtValue();
       Result.Base = (Expr*)nullptr;
       Result.InvalidBase = false;
@@ -13165,6 +13182,14 @@ EvaluateComparisonBinaryOperator(EvalInfo &Info, const BinaryOperator *E,
     // The comparison here must be unsigned, and performed with the same
     // width as the pointer.
     unsigned PtrSize = Info.Ctx.getTypeSize(LHSTy);
+    if (Info.Ctx.getLangOpts().RenesasRL78) {
+      // For RL78 far pointer equality is checked using 24bits, other
+      // relationals are checked using 16bits.
+      if (IsEquality)
+        PtrSize = PtrSize > 24 ? 24 : PtrSize;
+      else if (IsRelational)
+        PtrSize = PtrSize > 16 ? 16 : PtrSize;
+    }
     uint64_t CompareLHS = LHSOffset.getQuantity();
     uint64_t CompareRHS = RHSOffset.getQuantity();
     assert(PtrSize <= 64 && "Unexpected pointer width");
@@ -13486,6 +13511,9 @@ bool IntExprEvaluator::VisitUnaryExprOrTypeTraitExpr(
                     Info.Ctx.getOpenMPDefaultSimdAlign(E->getArgumentType()))
             .getQuantity(),
         E);
+  case UETT_SecTop:
+  case UETT_SecEnd:
+    return false;
   }
 
   llvm_unreachable("unknown expr/type trait");
@@ -14117,7 +14145,8 @@ static bool TryEvaluateBuiltinNaN(const ASTContext &Context,
     if (SNaN)
       Result = llvm::APFloat::getSNaN(Sem, false, &fill);
     else
-      Result = llvm::APFloat::getQNaN(Sem, false, &fill);
+      // CC-RL emits "negative" NaN
+      Result = llvm::APFloat::getQNaN(Sem, Context.getLangOpts().RenesasExt, &fill);
   } else {
     // Prior to IEEE 754-2008, architectures were allowed to choose whether
     // the first bit of their significand was set for qNaN or sNaN. MIPS chose

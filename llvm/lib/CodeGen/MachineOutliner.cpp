@@ -108,6 +108,12 @@ static cl::opt<bool> EnableLinkOnceODROutlining(
     cl::desc("Enable the machine outliner on linkonceodr functions"),
     cl::init(false));
 
+static cl::opt<bool>
+    UseSectionAttribute(
+        "use-section-attribute-in-outlined-functions", cl::NotHidden,
+        cl::desc("Use section attribute in outlined functions"),
+        cl::init(true));
+
 /// Number of times to re-run the outliner. This is not the total number of runs
 /// as the outliner will run at least one time. The default value is set to 0,
 /// meaning the outliner will run one time and rerun zero times after that.
@@ -123,6 +129,23 @@ static cl::opt<unsigned> OutlinerBenefitThreshold(
 
 namespace {
 
+struct MachineInstrExpressionTraitOutliner : public MachineInstrExpressionTrait {
+  static unsigned getHashValue(const MachineInstr* const& MI) {
+    unsigned int hashValue = MachineInstrExpressionTrait::getHashValue(MI);
+    if (UseSectionAttribute && 
+        MI->getParent()->getParent()->getFunction().hasSection() ||
+        MI->getParent()->getParent()->getFunction().hasFnAttribute(
+            "implicit-section-name")) {
+      unsigned int secHash = hash_value(
+        MI->getParent()->getParent()->getFunction().hasSection() ?
+        MI->getParent()->getParent()->getFunction().getSection() : 
+        MI->getParent()->getParent()->getFunction().getFnAttribute("implicit-section-name").getValueAsString());
+      hashValue = hash_combine(hashValue, secHash);
+    }
+    return hashValue;
+  }
+};
+
 /// Maps \p MachineInstrs to unsigned integers and stores the mappings.
 struct InstructionMapper {
 
@@ -137,7 +160,7 @@ struct InstructionMapper {
   unsigned LegalInstrNumber = 0;
 
   /// Correspondence from \p MachineInstrs to unsigned integers.
-  DenseMap<MachineInstr *, unsigned, MachineInstrExpressionTrait>
+  DenseMap<MachineInstr *, unsigned, MachineInstrExpressionTraitOutliner>
       InstructionIntegerMap;
 
   /// Correspondence between \p MachineBasicBlocks and target-defined flags.
@@ -185,7 +208,7 @@ struct InstructionMapper {
     InstrListForMBB.push_back(It);
     MachineInstr &MI = *It;
     bool WasInserted;
-    DenseMap<MachineInstr *, unsigned, MachineInstrExpressionTrait>::iterator
+    DenseMap<MachineInstr *, unsigned, MachineInstrExpressionTraitOutliner>::iterator
         ResultIt;
     std::tie(ResultIt, WasInserted) =
         InstructionIntegerMap.insert(std::make_pair(&MI, LegalInstrNumber));
@@ -719,6 +742,31 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
       });
   if (UW != UWTableKind::None)
     F->setUWTableKind(UW);
+
+  const Function &ParentFn = FirstCand.getMF()->getFunction();
+  if (UseSectionAttribute &&
+      (ParentFn.hasSection() ||
+       ParentFn.hasFnAttribute("implicit-section-name"))) {
+    StringRef Section = ParentFn.hasSection() ? ParentFn.getSection():
+      ParentFn.getFnAttribute("implicit-section-name").getValueAsString();
+
+    bool AddSection = true;
+    for (auto Cand : OF.Candidates) {
+      if (((!Cand.getMF()->getFunction().hasSection()) ||
+           (Section != Cand.getMF()->getFunction().getSection())) &&
+          ((!Cand.getMF()->getFunction().hasFnAttribute(
+              "implicit-section-name")) ||
+          (Section != Cand.getMF()
+                          ->getFunction()
+                          .getFnAttribute("implicit-section-name")
+                          .getValueAsString()))) {
+        AddSection = false;
+        break;
+      }
+    }
+    if (AddSection)
+      F->setSection(Section);
+  }
 
   BasicBlock *EntryBB = BasicBlock::Create(C, "entry", F);
   IRBuilder<> Builder(EntryBB);

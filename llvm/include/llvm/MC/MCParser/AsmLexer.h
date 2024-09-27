@@ -26,6 +26,7 @@ class AsmLexer : public MCAsmLexer {
   const MCAsmInfo &MAI;
 
   const char *CurPtr = nullptr;
+  const char *EndPtr = nullptr;
   StringRef CurBuf;
   bool IsAtStartOfLine = true;
   bool IsAtStartOfStatement = true;

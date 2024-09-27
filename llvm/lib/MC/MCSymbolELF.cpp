@@ -117,6 +117,9 @@ void MCSymbolELF::setType(unsigned Type) const {
   case ELF::STT_GNU_IFUNC:
     Val = 6;
     break;
+  case ELF::STT_HIPROC:
+    Val = 7;
+    break;
   }
   uint32_t OtherFlags = getFlags() & ~(0x7 << ELF_STT_Shift);
   setFlags(OtherFlags | (Val << ELF_STT_Shift));
@@ -141,6 +144,8 @@ unsigned MCSymbolELF::getType() const {
     return ELF::STT_TLS;
   case 6:
     return ELF::STT_GNU_IFUNC;
+  case 7:
+    return ELF::STT_HIPROC;
   }
 }
 

@@ -446,7 +446,7 @@ public:
     static const mask xdigit = _ISXDIGIT;
     static const mask blank  = _ISBLANK;
     static const mask __regex_word = 0x8000;
-#elif defined(_NEWLIB_VERSION)
+#elif defined(_NEWLIB_VERSION) && !defined(__RL78__)
     // Same type as Newlib's _ctype_ array in newlib/libc/include/ctype.h.
     typedef char mask;
     static const mask space  = _S;

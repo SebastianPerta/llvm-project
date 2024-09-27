@@ -15,6 +15,7 @@
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
 #include "Arch/RISCV.h"
+#include "Arch/RL78.h"
 #include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
 #include "Arch/VE.h"
@@ -379,6 +380,19 @@ static StringRef getWebAssemblyTargetCPU(const ArgList &Args) {
   return "generic";
 }
 
+/// Get the (LLVM) name of the RL78 CPU we are targeting.
+static std::string getRL78TargetCPU(const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(options::OPT_mcpu_EQ)) {
+    const char *CPUName = A->getValue();
+    return llvm::StringSwitch<const char *>(CPUName)
+        .Cases("S1", "s1", "RL78_S1")
+		.Cases("S2", "s2", "RL78_S2")
+		.Cases("S3", "s3", "RL78_S3")
+        .Default(CPUName);
+  }
+  return "RL78_S3";
+}
+
 std::string tools::getCPUName(const Driver &D, const ArgList &Args,
                               const llvm::Triple &T, bool FromAs) {
   Arg *A;
@@ -441,6 +455,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     return riscv::getRISCVTargetCPU(Args, T);
+
+  case llvm::Triple::RL78:
+    return getRL78TargetCPU(Args);
 
   case llvm::Triple::bpfel:
   case llvm::Triple::bpfeb:
@@ -566,6 +583,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::loongarch64:
     loongarch::getLoongArchTargetFeatures(D, Triple, Args, Features);
     break;
+  case llvm::Triple::RL78:
+    rl78::getRL78TargetFeatures(D, Triple, Args, Features);
+    break;
   }
 
   for (auto Feature : unifyTargetFeatures(Features)) {
@@ -576,7 +596,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
 
 llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
   Arg *LtoJobsArg = Args.getLastArg(options::OPT_flto_jobs_EQ);
-  if (!LtoJobsArg)
+  llvm::Triple Triple(D.getTargetTriple());
+  // TODO: see if this indeed disabled parallelism for RL78
+  if (!LtoJobsArg || Triple.getArch() == llvm::Triple::RL78)
     return {};
   if (!llvm::get_threadpool_strategy(LtoJobsArg->getValue()))
     D.Diag(diag::err_drv_invalid_int_value)

@@ -1805,6 +1805,50 @@ static bool tryAtomicConversion(Sema &S, Expr *From, QualType ToType,
                                 StandardConversionSequence &SCS,
                                 bool CStyle);
 
+// On RL78 targets, the function and member function pointers conversions
+// should disregard the NonDefaultAS ExtInfo setting
+static bool IsRL78FuncPtrConversion(Sema &S, Expr *From, QualType CanonFrom,
+                                    QualType CanonTo) {
+  if (S.Context.getTargetInfo().getTriple().isRL78()) {
+    auto T0 = CanonFrom.getTypePtr(), T1 = CanonTo.getTypePtr();
+
+    // both types are either function pointers or pointers to member functions
+    // (of related classes)
+    auto BothOk = T0->isFunctionPointerType() && T1->isFunctionPointerType();
+
+    if (!BothOk &&
+        T0->isMemberFunctionPointerType() && T1->isMemberFunctionPointerType()) {
+      auto C0 = QualType(cast<MemberPointerType>(T0)->getClass(), 0),
+           C1 = QualType(cast<MemberPointerType>(T1)->getClass(), 0);
+      BothOk = S.Context.hasSameType(C0, C1) ||
+               S.IsDerivedFrom(From->getBeginLoc(), C0, C1);
+    }
+
+    if (BothOk) {
+      // look at the pointees (should be FunctionTypes)
+      clang::QualType PT[] = { T0->getPointeeType(), T1->getPointeeType() };
+      assert(PT[0].getTypePtr()->isFunctionType() && PT[1].getTypePtr()->isFunctionType());
+
+      // and particularly at their ExtInfos
+      const clang::FunctionType *F[] = { cast<FunctionType>(PT[0]), cast<FunctionType>(PT[1]) };
+      clang::FunctionType::ExtInfo EI[] = {F[0]->getExtInfo(), F[1]->getExtInfo()};
+
+      // if the ExtInfos differ only in the NonDefaultAS setting...
+      if (EI[0] != EI[1] &&
+          EI[0].withNonDefaultAS(0) == EI[1].withNonDefaultAS(0)) {
+        auto NonDefASIdx = 1 - EI[0].getNonDefaultAS();
+        auto NewPTNonDefAS = S.Context.adjustFunctionType(F[NonDefASIdx],
+                                                          EI[NonDefASIdx].withNonDefaultAS(0));
+        // conversion is ok if the function types are the same with that setting abstracted
+        return S.Context.hasSameFunctionTypeIgnoringExceptionSpec(PT[1 - NonDefASIdx],
+                                                                  QualType(NewPTNonDefAS, 0));
+      }
+    }
+  }
+
+  return false;
+}
+
 /// IsStandardConversion - Determines whether there is a standard
 /// conversion sequence (C++ [conv], C++ [over.ics.scs]) from the
 /// expression From to the type ToType. Standard conversion sequences
@@ -2102,9 +2146,10 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
   //   a conversion. [...]
   QualType CanonFrom = S.Context.getCanonicalType(FromType);
   QualType CanonTo = S.Context.getCanonicalType(ToType);
-  if (CanonFrom.getLocalUnqualifiedType()
+  if ((CanonFrom.getLocalUnqualifiedType()
                                      == CanonTo.getLocalUnqualifiedType() &&
-      CanonFrom.getLocalQualifiers() != CanonTo.getLocalQualifiers()) {
+       CanonFrom.getLocalQualifiers() != CanonTo.getLocalQualifiers()) ||
+      IsRL78FuncPtrConversion(S, From, CanonFrom, CanonTo)) {
     FromType = ToType;
     CanonFrom = CanonTo;
   }

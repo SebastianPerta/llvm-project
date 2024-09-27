@@ -485,7 +485,9 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
       Name == ".sbss" ||
       Name.startswith(".sbss.") ||
       Name.startswith(".gnu.linkonce.sb.") ||
-      Name.startswith(".llvm.linkonce.sb."))
+      Name.startswith(".llvm.linkonce.sb.") ||
+      Name.startswith(".bssf") ||
+	  Name.startswith(".bssf."))
     return SectionKind::getBSS();
 
   if (Name == ".tdata" ||
@@ -526,6 +528,18 @@ static unsigned getELFSectionType(StringRef Name, SectionKind K) {
 
   if (hasPrefix(Name, ".llvm.offloading"))
     return ELF::SHT_LLVM_OFFLOADING;
+
+  if (Name.startswith(".bss_AT"))
+	  return ELF::SHT_NOBITS;
+
+  if (Name.startswith(".bssf_AT"))
+	  return ELF::SHT_NOBITS;
+
+  if (Name.startswith(".bssf"))
+	  return ELF::SHT_NOBITS;
+
+  if (Name.startswith(".sbss"))
+	  return ELF::SHT_NOBITS;
 
   if (K.isBSS() || K.isThreadBSS())
     return ELF::SHT_NOBITS;
@@ -635,6 +649,7 @@ static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
 static SmallString<128>
 getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
                            Mangler &Mang, const TargetMachine &TM,
+                           std::string SectionPrefixForGlobal,
                            unsigned EntrySize, bool UniqueSectionName) {
   SmallString<128> Name;
   if (Kind.isMergeableCString()) {
@@ -644,16 +659,13 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     Align Alignment = GO->getParent()->getDataLayout().getPreferredAlign(
         cast<GlobalVariable>(GO));
 
-    std::string SizeSpec = ".rodata.str" + utostr(EntrySize) + ".";
+    std::string SizeSpec = SectionPrefixForGlobal + ".str" + utostr(EntrySize) + ".";
     Name = SizeSpec + utostr(Alignment.value());
   } else if (Kind.isMergeableConst()) {
-    Name = ".rodata.cst";
+    Name = SectionPrefixForGlobal + ".cst";
     Name += utostr(EntrySize);
   } else {
-    bool IsLarge = false;
-    if (isa<GlobalVariable>(GO))
-      IsLarge = TM.isLargeData();
-    Name = getSectionPrefixForGlobal(Kind, IsLarge);
+    Name = SectionPrefixForGlobal;
   }
 
   bool HasPrefix = false;
@@ -691,6 +703,7 @@ public:
 static unsigned
 calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
                                SectionKind Kind, const TargetMachine &TM,
+                               std::string SectionPrefixForGlobal,
                                MCContext &Ctx, Mangler &Mang, unsigned &Flags,
                                unsigned &EntrySize, unsigned &NextUniqueID,
                                const bool Retain, const bool ForceUnique) {
@@ -752,7 +765,7 @@ calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
   // to unique the section as the entry size for this symbol will be
   // compatible with implicitly created sections.
   SmallString<128> ImplicitSectionNameStem =
-      getELFSectionNameForGlobal(GO, Kind, Mang, TM, EntrySize, false);
+      getELFSectionNameForGlobal(GO, Kind, Mang, TM, SectionPrefixForGlobal, EntrySize, false);
   if (SymbolMergeable &&
       Ctx.isELFImplicitMergeableSectionNamePrefix(SectionName) &&
       SectionName.startswith(ImplicitSectionNameStem))
@@ -765,6 +778,7 @@ calcUniqueIDUpdateFlagsAndSize(const GlobalObject *GO, StringRef SectionName,
 
 static MCSection *selectExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM,
+    std::string SectionPrefixForGlobal,
     MCContext &Ctx, Mangler &Mang, unsigned &NextUniqueID,
     bool Retain, bool ForceUnique) {
   StringRef SectionName = GO->getSection();
@@ -796,6 +810,11 @@ static MCSection *selectExplicitSectionGlobal(
   StringRef Group = "";
   bool IsComdat = false;
   unsigned Flags = getELFSectionFlags(Kind);
+
+  if (TM.getTargetTriple().getArch() == Triple::RL78 && GV &&
+      GV->getAttributes().hasAttribute("abs_addr"))
+    Flags |= ELF::SHF_RENESAS_ABS;
+
   if (const Comdat *C = getELFComdat(GO)) {
     Group = C->getName();
     IsComdat = C->getSelectionKind() == Comdat::Any;
@@ -804,7 +823,7 @@ static MCSection *selectExplicitSectionGlobal(
 
   unsigned EntrySize = getEntrySizeForKind(Kind);
   const unsigned UniqueID = calcUniqueIDUpdateFlagsAndSize(
-      GO, SectionName, Kind, TM, Ctx, Mang, Flags, EntrySize, NextUniqueID,
+      GO, SectionName, Kind, TM, SectionPrefixForGlobal, Ctx, Mang, Flags, EntrySize, NextUniqueID,
       Retain, ForceUnique);
 
   const MCSymbolELF *LinkedToSym = getLinkedToSymbol(GO, TM);
@@ -838,14 +857,16 @@ static MCSection *selectExplicitSectionGlobal(
 
 MCSection *TargetLoweringObjectFileELF::getExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
-  return selectExplicitSectionGlobal(GO, Kind, TM, getContext(), getMangler(),
+    std::string SectionPrefix = getSectionPrefixForGlobal(Kind, GO);
+
+  return selectExplicitSectionGlobal(GO, Kind, TM, SectionPrefix, getContext(), getMangler(),
                                      NextUniqueID, Used.count(GO),
                                      /* ForceUnique = */false);
 }
 
 static MCSectionELF *selectELFSectionForGlobal(
     MCContext &Ctx, const GlobalObject *GO, SectionKind Kind, Mangler &Mang,
-    const TargetMachine &TM, bool EmitUniqueSection, unsigned Flags,
+    const TargetMachine &TM, std::string SectionPrefixForGlobal, bool EmitUniqueSection, unsigned Flags,
     unsigned *NextUniqueID, const MCSymbolELF *AssociatedSymbol) {
 
   StringRef Group = "";
@@ -876,7 +897,7 @@ static MCSectionELF *selectELFSectionForGlobal(
     }
   }
   SmallString<128> Name = getELFSectionNameForGlobal(
-      GO, Kind, Mang, TM, EntrySize, UniqueSectionName);
+      GO, Kind, Mang, TM, SectionPrefixForGlobal, EntrySize, UniqueSectionName);
 
   // Use 0 as the unique ID for execute-only text.
   if (Kind.isExecuteOnly())
@@ -888,7 +909,7 @@ static MCSectionELF *selectELFSectionForGlobal(
 
 static MCSection *selectELFSectionForGlobal(
     MCContext &Ctx, const GlobalObject *GO, SectionKind Kind, Mangler &Mang,
-    const TargetMachine &TM, bool Retain, bool EmitUniqueSection,
+    const TargetMachine &TM,  std::string SectionPrefixForGlobal, bool Retain, bool EmitUniqueSection,
     unsigned Flags, unsigned *NextUniqueID) {
   const MCSymbolELF *LinkedToSym = getLinkedToSymbol(GO, TM);
   if (LinkedToSym) {
@@ -907,10 +928,15 @@ static MCSection *selectELFSectionForGlobal(
   }
 
   MCSectionELF *Section = selectELFSectionForGlobal(
-      Ctx, GO, Kind, Mang, TM, EmitUniqueSection, Flags,
+      Ctx, GO, Kind, Mang, TM, SectionPrefixForGlobal, EmitUniqueSection, Flags,
       NextUniqueID, LinkedToSym);
   assert(Section->getLinkedToSymbol() == LinkedToSym);
   return Section;
+}
+
+std::string TargetLoweringObjectFileELF::getSectionPrefixForGlobal(
+    SectionKind Kind, const GlobalObject *GO) const {
+  return getSectionPrefixForGlobal(Kind);
 }
 
 MCSection *TargetLoweringObjectFileELF::SelectSectionForGlobal(
@@ -922,12 +948,16 @@ MCSection *TargetLoweringObjectFileELF::SelectSectionForGlobal(
   bool EmitUniqueSection = false;
   if (!(Flags & ELF::SHF_MERGE) && !Kind.isCommon()) {
     if (Kind.isText())
-      EmitUniqueSection = TM.getFunctionSections();
+      EmitUniqueSection = TM.getFunctionSections() ||
+                          TM.getTargetTriple().getArch() == Triple::RL78 &&
+                              GO->getName().startswith("OUTLINED_FUNCTION_");
     else
       EmitUniqueSection = TM.getDataSections();
   }
   EmitUniqueSection |= GO->hasComdat();
+  std::string SectionPrefixForGlobal = getSectionPrefixForGlobal(Kind,GO);
   return selectELFSectionForGlobal(getContext(), GO, Kind, getMangler(), TM,
+                                   SectionPrefixForGlobal,
                                    Used.count(GO), EmitUniqueSection, Flags,
                                    &NextUniqueID);
 }
@@ -938,14 +968,17 @@ MCSection *TargetLoweringObjectFileELF::getUniqueSectionForFunction(
   unsigned Flags = getELFSectionFlags(Kind);
   // If the function's section names is pre-determined via pragma or a
   // section attribute, call selectExplicitSectionGlobal.
-  if (F.hasSection() || F.hasFnAttribute("implicit-section-name"))
+  std::string SectionPrefixForGlobal = getSectionPrefixForGlobal(Kind, &F);
+  if (F.hasSection() || F.hasFnAttribute("implicit-section-name")) {
     return selectExplicitSectionGlobal(
-        &F, Kind, TM, getContext(), getMangler(), NextUniqueID,
+        &F, Kind, TM, SectionPrefixForGlobal, getContext(), getMangler(), NextUniqueID,
         Used.count(&F), /* ForceUnique = */true);
-  else
+  }
+  else {
     return selectELFSectionForGlobal(
-        getContext(), &F, Kind, getMangler(), TM, Used.count(&F),
+        getContext(), &F, Kind, getMangler(), TM, SectionPrefixForGlobal, Used.count(&F),
         /*EmitUniqueSection=*/true, Flags, &NextUniqueID);
+  }
 }
 
 MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
@@ -956,9 +989,9 @@ MCSection *TargetLoweringObjectFileELF::getSectionForJumpTable(
   bool EmitUniqueSection = TM.getFunctionSections() || C;
   if (!EmitUniqueSection)
     return ReadOnlySection;
-
+  std::string SectionPrefixForGlobal = getSectionPrefixForGlobal(SectionKind::getReadOnly(),nullptr);
   return selectELFSectionForGlobal(getContext(), &F, SectionKind::getReadOnly(),
-                                   getMangler(), TM, EmitUniqueSection,
+                                   getMangler(), TM, SectionPrefixForGlobal, EmitUniqueSection,
                                    ELF::SHF_ALLOC, &NextUniqueID,
                                    /* AssociatedSymbol */ nullptr);
 }

@@ -28,3 +28,7 @@ COMPILER_RT_ABI si_int __divsi3(si_int a, si_int b) { return __divXi3(a, b); }
 #if defined(__ARM_EABI__)
 COMPILER_RT_ALIAS(__divsi3, __aeabi_idiv)
 #endif
+
+#if defined(__RL78__)
+COMPILER_RT_ALIAS(__divsi3,_COM_sldiv)
+#endif

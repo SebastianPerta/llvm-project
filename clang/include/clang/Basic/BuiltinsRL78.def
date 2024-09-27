@@ -1,0 +1,143 @@
+// The format of this database matches clang/Basic/Builtins.def.
+
+//Output EI instruction.
+//GCC:  void __builtin_rl78_ei ();
+//CCRL: void __EI(void);
+BUILTIN(__builtin_rl78_ei, "v", "")
+BUILTIN(__EI, "v", "")
+
+//Output DI instruction.
+//GCC:   void __builtin_rl78_di ();
+//CCRL:  void __DI(void);
+BUILTIN(__builtin_rl78_di, "v", "")
+BUILTIN(__DI, "v", "")
+
+//Output HALT instruction.
+//CCRL: void __halt(void);
+BUILTIN(__halt, "v", "")
+
+//Output STOP instruction.
+//CCRL:  void __stop(void);
+BUILTIN(__stop, "v", "")
+
+//Output NOP instruction.
+//CCRL:  void __nop(void);
+BUILTIN(__nop, "v", "")
+
+//Output BRK instruction.
+//CCRL:  void __brk(void);
+BUILTIN(__brk, "v", "")
+
+//Return the value of the Interrupt enable flag (IE) from the Program status word (PSW) register.
+//GCC: char __builtin_rl78_pswie ();
+BUILTIN(__builtin_rl78_pswie, "c", "")
+
+//Return the values of the In-service priority flags (ISP0 and ISP1) from the Program status word (PSW) register.
+//GCC: char __builtin_rl78_getpswisp ();
+BUILTIN(__builtin_rl78_getpswisp, "c", "")
+
+//Set the values of the In-service priority flags (ISP0 and ISP1) from the Program status word (PSW) register with the argument value.
+//GCC: void __builtin_rl78_setpswisp (char);
+BUILTIN(__builtin_rl78_setpswisp, "vc", "")
+
+//Return the contents of PSW.
+//CCRL:  unsigned char __get_psw(void);
+BUILTIN(__get_psw, "Uc", "")
+
+//Sets x to PSW.
+//CCRL:  void __set_psw(unsigned char x);
+BUILTIN(__set_psw, "vUc", "")
+
+//Output mov1 instruction.
+//GCC: void __builtin_rl78_mov1 (char *, char, char, char);
+BUILTIN(__builtin_rl78_mov1, "vc*IccIc", "")
+
+//Output and1 instruction.
+//GCC: void __builtin_rl78_and1 (char *, char, char, char);
+BUILTIN(__builtin_rl78_and1, "vc*IccIc", "")
+
+//Output or1 instruction.
+//GCC: void __builtin_rl78_or1 (char *, char, char, char);
+BUILTIN(__builtin_rl78_or1, "vc*IccIc", "")
+
+//Output xor1 instruction.
+//GCC: void __builtin_rl78_xor1 (char *, char, char, char);
+BUILTIN(__builtin_rl78_xor1, "vc*IccIc", "")
+
+//Output set1 instruction.
+//GCC: void __builtin_rl78_set1 (char *, char);
+//CCRL: void __set1(unsigned char *x, unsigned char y);
+BUILTIN(__builtin_rl78_set1, "vc*Ic", "")
+BUILTIN(__set1, "vUc*Uc", "")
+
+//Output clr1 instruction.
+//Built-in Function: void __builtin_rl78_clr1 (char *, char);
+//CCRL: void __clr1(unsigned char *x, unsigned char y);
+BUILTIN(__builtin_rl78_clr1, "vc*Ic", "")
+BUILTIN(__clr1, "vUc*Uc", "")
+
+//Output not1 instruction.
+//GCC: void __builtin_rl78_not1 (char *, char);
+//CCRL: void __not1(unsigned char *x, unsigned char y);
+BUILTIN(__builtin_rl78_not1, "vc*Ic", "")
+BUILTIN(__not1, "vUc*Uc", "")
+
+//Output ror1 instruction.
+//GCC: char __builtin_rl78_ror1 (char);
+BUILTIN(__builtin_rl78_ror1, "cc", "")
+
+//Output rol1 instruction.
+//GCC: char __builtin_rl78_rol1 (char);
+BUILTIN(__builtin_rl78_rol1, "cc", "")
+
+//Rotate x to the left y times (size of x is 8-bit).
+//CCRL: unsigned char __rolb(unsigned char x, unsigned char y);
+BUILTIN(__rolb, "UcUcUc", "")
+
+//Rotate x to the right y times (size of x is 8-bit).
+//CCRL: unsigned char __rorb(unsigned char x, unsigned char y);
+BUILTIN(__rorb, "UcUcUc", "")
+
+//Rotate x to the left y times (size of x is 16-bit).
+//CCRL: unsigned int __rolw(unsigned int x, unsigned char y);
+BUILTIN(__rolw, "UiUiUc", "")
+
+//Rotate x to the right y times (size of x is 16-bit).
+//CCRL: unsigned int __rorw(unsigned int x, unsigned char y);
+BUILTIN(__rorw, "UiUiUc", "")
+
+//16-bit unsigned multiplication of two 8-bit values, x and y.
+//CCRL: unsigned int __mulu(unsigned char x, unsigned char y);
+BUILTIN(__mulu, "UiUcUc", "")
+
+//32-bit unsigned multiplication of two 16-bit values, x and y.
+//CCRL: unsigned long __mului(unsigned int x, unsigned int y);
+BUILTIN(__mului, "ULiUiUi", "")
+
+//32-bit signed multiplication of two 16-bit values, x and y.
+//CCRL: signed long __mulsi(signed int x, signed int y);
+BUILTIN(__mulsi, "Liii", "")
+
+//CCRL: unsigned long long __mulul(unsigned long x, unsigned long y);
+BUILTIN(__mulul, "ULLiULiULi", "")
+
+//CCRL: signed long long __mulsl(signed long x, signed long y);
+BUILTIN(__mulsl, "LLiLiLi", "")
+
+//CCRL: unsigned int __divui(unsigned int x, unsigned char y);
+BUILTIN(__divui, "UiUiUc", "")
+
+//CCRL: unsigned long __divul(unsigned long x, unsigned int y);
+BUILTIN(__divul, "ULiULiUi", "")
+
+//CCRL: unsigned char __remui(unsigned int x, unsigned char y);
+BUILTIN(__remui, "UcUiUc", "")
+
+//CCRL: unsigned int __remul(unsigned long x, unsigned int y);
+BUILTIN(__remul, "UiULiUi", "")
+
+//CCRL: unsigned long __macui(unsigned int x, unsigned int y, unsigned long z);
+BUILTIN(__macui, "ULiUiUiULi", "")
+
+//CCRL: signed long __macsi(signed int x, signed int y, signed long z);
+BUILTIN(__macsi, "LiiiLi", "")

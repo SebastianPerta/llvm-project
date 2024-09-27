@@ -947,7 +947,15 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
   auto *PTy = cast<PointerType>(Ptr->getType());
   if ((Ptr->isNullValue() || BasePtr != 0) &&
       !DL.isNonIntegralPointerType(PTy)) {
-    Constant *C = ConstantInt::get(Ptr->getContext(), Offset + BasePtr);
+    // TODO: no idea how to make this rl78 specific...
+    APInt FoldedBasePtr(BitWidth, 0);
+    // Since for RL78 data alocation is prohibited accross segments, offsets are
+    // added to the lower 16bytes only
+    if (PTy->getAddressSpace() == 2)
+      FoldedBasePtr = (BasePtr & 0xFF0000) | (0xFFFF & (Offset + BasePtr));
+    else
+      FoldedBasePtr = Offset + BasePtr;
+    Constant *C = ConstantInt::get(Ptr->getContext(), FoldedBasePtr);
     return ConstantExpr::getIntToPtr(C, ResTy);
   }
 

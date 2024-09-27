@@ -1292,7 +1292,9 @@ unsigned TargetLibraryInfoImpl::getSizeTSize(const Module &M) const {
   // getPointerSizeInBits. Hard coding address space zero here might be
   // unfortunate as well. Maybe getDefaultGlobalsAddressSpace() or
   // getAllocaAddrSpace() is better.
-  unsigned AddressSpace = 0;
+  // RL78: always use AS 1 (near) for size_t (even for -mfar-data)
+  unsigned AddressSpace = StringRef(M.getTargetTriple()).startswith("rl78");
+
   return M.getDataLayout().getPointerSizeInBits(AddressSpace);
 }
 

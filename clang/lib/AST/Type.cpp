@@ -4699,6 +4699,15 @@ void clang::FixedPointValueToString(SmallVectorImpl<char> &Str,
   llvm::APFixedPoint(Val, FXSema).toString(Str);
 }
 
+LangAS clang::getAddressSpace(QualType Type, const ASTContext &Ctx) {
+  if (Ctx.getTargetInfo().getTriple().isRL78() && !Type.hasAddressSpace()) {
+    auto T = Type.getTypePtr()->getUnqualifiedDesugaredType();
+    if (isa<FunctionType>(T) && cast<FunctionType>(T)->getFar())
+      return LangAS::__far_code;
+  }
+  return Type.getAddressSpace();
+}
+
 AutoType::AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
                    TypeDependence ExtraDependence, QualType Canon,
                    ConceptDecl *TypeConstraintConcept,

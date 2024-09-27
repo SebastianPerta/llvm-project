@@ -220,6 +220,19 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
   std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
+  std::unique_ptr<PragmaHandler> InterruptHandler;
+  std::unique_ptr<PragmaHandler> BrkInterruptHandler;
+  std::unique_ptr<PragmaHandler> SectionHandler;
+  std::unique_ptr<PragmaHandler> InlineHandler;
+  std::unique_ptr<PragmaHandler> NoInlineHandler;
+  std::unique_ptr<PragmaHandler> InlineASMHandler;
+  std::unique_ptr<PragmaHandler> AddressHandler;
+  std::unique_ptr<PragmaHandler> SaddrHandler;
+  std::unique_ptr<PragmaHandler> CalltHandler;
+  std::unique_ptr<PragmaHandler> NearHandler;
+  std::unique_ptr<PragmaHandler> FarHandler;
+  std::unique_ptr<PragmaHandler> CCRLPackHandler;
+  std::unique_ptr<PragmaHandler> CCRLUnpackHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -2410,6 +2423,7 @@ private:
       const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
       ForRangeInit *FRI = nullptr);
   Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope);
+  Decl *ParseInlineASMFunctionStatementBody(Decl *Decl, ParseScope &BodyScope);
   Decl *ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope);
 
   /// When in code-completion, skip parsing of the function/method body
@@ -3014,6 +3028,14 @@ private:
                                   ParsedAttr::Form Form);
 
   void ParseTypeTagForDatatypeAttribute(IdentifierInfo &AttrName,
+                                        SourceLocation AttrNameLoc,
+                                        ParsedAttributes &Attrs,
+                                        SourceLocation *EndLoc,
+                                        IdentifierInfo *ScopeName,
+                                        SourceLocation ScopeLoc,
+                                        ParsedAttr::Form Form);
+
+  void ParseRL78InterruptAttribute(IdentifierInfo &AttrName,
                                         SourceLocation AttrNameLoc,
                                         ParsedAttributes &Attrs,
                                         SourceLocation *EndLoc,

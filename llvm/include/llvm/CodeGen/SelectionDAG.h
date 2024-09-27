@@ -32,6 +32,7 @@
 #include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/Support/Allocator.h"
@@ -666,7 +667,7 @@ public:
   SDValue getConstant(const ConstantInt &Val, const SDLoc &DL, EVT VT,
                       bool isTarget = false, bool isOpaque = false);
   SDValue getIntPtrConstant(uint64_t Val, const SDLoc &DL,
-                            bool isTarget = false);
+                            bool isTarget = false, uint32_t AS = 0);
   SDValue getShiftAmountConstant(uint64_t Val, EVT VT, const SDLoc &DL,
                                  bool LegalTypes = true);
   SDValue getVectorIdxConstant(uint64_t Val, const SDLoc &DL,
@@ -1033,9 +1034,10 @@ public:
   SDValue getCALLSEQ_START(SDValue Chain, uint64_t InSize, uint64_t OutSize,
                            const SDLoc &DL) {
     SDVTList VTs = getVTList(MVT::Other, MVT::Glue);
+    // FIXME: can we make the AS selection conditional i.e. only for RL78?
     SDValue Ops[] = { Chain,
-                      getIntPtrConstant(InSize, DL, true),
-                      getIntPtrConstant(OutSize, DL, true) };
+                      getIntPtrConstant(InSize, DL, true, getDataLayout().getAllocaAddrSpace()),
+                      getIntPtrConstant(OutSize, DL, true, getDataLayout().getAllocaAddrSpace()) };
     return getNode(ISD::CALLSEQ_START, DL, VTs, Ops);
   }
 
@@ -1056,9 +1058,12 @@ public:
 
   SDValue getCALLSEQ_END(SDValue Chain, uint64_t Size1, uint64_t Size2,
                          SDValue Glue, const SDLoc &DL) {
+    // FIXME: can we make the AS selection conditional i.e. only for RL78?
     return getCALLSEQ_END(
-        Chain, getIntPtrConstant(Size1, DL, /*isTarget=*/true),
-        getIntPtrConstant(Size2, DL, /*isTarget=*/true), Glue, DL);
+        Chain,
+        getIntPtrConstant(Size1, DL, /*isTarget=*/true, getDataLayout().getAllocaAddrSpace()),
+        getIntPtrConstant(Size2, DL, /*isTarget=*/true, getDataLayout().getAllocaAddrSpace()),
+        Glue, DL);
   }
 
   /// Return true if the result of this operation is always undefined.

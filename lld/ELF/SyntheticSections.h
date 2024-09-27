@@ -732,6 +732,7 @@ public:
   void writeTo(uint8_t *buf) override;
   size_t getSize() const override;
   bool isNeeded() const override;
+  bool updateAllocSize() override;
   void addSymbols();
   void addEntry(Symbol &sym);
   size_t getNumEntries() const { return entries.size(); }

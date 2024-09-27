@@ -598,6 +598,11 @@ enabled sub-projects. Nearly all of these variable names begin with
   Enable building with zlib to support compression/uncompression in LLVM tools.
   Defaults to ON.
 
+**LLVM_ENABLE_ICONV**:BOOL
+  Enable building with iconv library to support conversion between different
+  character sets.
+  Defaults to ON.
+
 **LLVM_EXPERIMENTAL_TARGETS_TO_BUILD**:STRING
   Semicolon-separated list of experimental targets to build and linked into
   llvm. This will build the experimental target without needing it to add to the

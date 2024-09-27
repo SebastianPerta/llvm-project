@@ -110,6 +110,8 @@ namespace {
     KEYSYCL       = 0x800000,
     KEYCUDA       = 0x1000000,
     KEYHLSL       = 0x2000000,
+    KEYRL78       = 0x4000000,
+    KEYRENESASCC  = 0x8000000,
     KEYMAX        = KEYHLSL, // The maximum key
     KEYALLCXX = KEYCXX | KEYCXX11 | KEYCXX20,
     KEYALL = (KEYMAX | (KEYMAX-1)) & ~KEYNOMS18 &
@@ -212,6 +214,10 @@ static KeywordStatus getKeywordStatusHelper(const LangOptions &LangOpts,
   case KEYNOMS18:
     // The disable behavior for this is handled in getKeywordStatus.
     return KS_Unknown;
+  case KEYRL78:
+    return LangOpts.RenesasRL78 ? KS_Extension : KS_Unknown;
+  case KEYRENESASCC:
+    return LangOpts.RenesasExt ? KS_Extension : KS_Unknown;
   default:
     llvm_unreachable("Unknown KeywordStatus flag");
   }

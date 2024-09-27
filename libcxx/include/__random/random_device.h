@@ -45,7 +45,11 @@ class _LIBCPP_EXPORTED_FROM_ABI random_device
 
 public:
     // types
+#ifdef __RL78__
+    typedef unsigned long result_type;
+#else
     typedef unsigned result_type;
+#endif
 
     // generator characteristics
     static _LIBCPP_CONSTEXPR const result_type _Min = 0;

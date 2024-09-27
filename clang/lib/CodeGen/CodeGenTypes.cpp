@@ -823,6 +823,14 @@ bool CodeGenTypes::isZeroInitializable(const RecordDecl *RD) {
 }
 
 unsigned CodeGenTypes::getTargetAddressSpace(QualType T) const {
+  // RL78: For function types, get the near/far address space from the FunctionType ExtInfo
+  if (T->isFunctionType() && !T.hasAddressSpace() && getContext().getLangOpts().RenesasRL78) {
+    const auto FT = cast<FunctionType>(T.getTypePtr()->getUnqualifiedDesugaredType());
+    if (FT->getFar() || FT->getNonDefaultAS())
+      return getContext().getTargetAddressSpace(
+          FT->getFar() ? LangAS::__far_code : LangAS::Default);
+  }
+
   // Return the address space for the type. If the type is a
   // function type without an address space qualifier, the
   // program address space is used. Otherwise, the target picks

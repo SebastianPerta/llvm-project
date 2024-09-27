@@ -106,7 +106,8 @@ public:
     renderscript32, // 32-bit RenderScript
     renderscript64, // 64-bit RenderScript
     ve,             // NEC SX-Aurora Vector Engine
-    LastArchType = ve
+    RL78,           // Renesas RL78
+    LastArchType = RL78
   };
   enum SubArchType {
     NoSubArch,
@@ -948,6 +949,11 @@ public:
   /// Tests whether the target is x86 (32- or 64-bit).
   bool isX86() const {
     return getArch() == Triple::x86 || getArch() == Triple::x86_64;
+  }
+
+  /// Tests whether the target is RL78
+  bool isRL78() const {
+    return getArch() == Triple::RL78;
   }
 
   /// Tests whether the target is VE

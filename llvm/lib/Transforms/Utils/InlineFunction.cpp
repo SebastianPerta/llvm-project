@@ -2455,9 +2455,15 @@ llvm::InlineResult llvm::InlineFunction(CallBase &CB, InlineFunctionInfo &IFI,
   // code with llvm.stacksave/llvm.stackrestore intrinsics.
   if (InlinedFunctionInfo.ContainsDynamicAllocas) {
     Module *M = Caller->getParent();
+
+    // FIXME: is there a better way to figure it out here if a RL78 target?
+    auto StackPtrTy = Type::getInt8PtrTy(M->getContext(),
+        StringRef(M->getTargetTriple()).startswith("rl78") ?
+        M->getDataLayout().getAllocaAddrSpace() : 0);
+
     // Get the two intrinsics we care about.
-    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
-    Function *StackRestore=Intrinsic::getDeclaration(M,Intrinsic::stackrestore);
+    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave, StackPtrTy);
+    Function *StackRestore=Intrinsic::getDeclaration(M,Intrinsic::stackrestore, StackPtrTy);
 
     // Insert the llvm.stacksave.
     CallInst *SavedPtr = IRBuilder<>(&*FirstNewBlock, FirstNewBlock->begin())

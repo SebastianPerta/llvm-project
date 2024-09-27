@@ -98,6 +98,9 @@
 /* Define if zstd compression is available */
 #cmakedefine01 LLVM_ENABLE_ZSTD
 
+/* Define if iconv library is available */
+#cmakedefine01 LLVM_ENABLE_ICONV
+
 /* Define if LLVM is using tflite instead of libtensorflow */
 #cmakedefine LLVM_HAVE_TFLITE
 
